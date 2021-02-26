@@ -8,12 +8,15 @@ import java.security.*;
 import java.util.Arrays;
 import java.util.Collection;
 
+/**
+ * Transaction element that is thread-safe as it is immutable (Same as {@link me.evmanu.daos.blocks.Block}
+ */
 @Getter
 public class Transaction implements Hashable {
 
     private final byte[] txID;
 
-    private final int blockNumber;
+    private final long blockNumber;
 
     private final short version;
 
@@ -102,10 +105,10 @@ public class Transaction implements Hashable {
     @Override
     public void addToHash(MessageDigest hash) {
 
-        var buffer = ByteBuffer.allocate(2 + 4);
+        var buffer = ByteBuffer.allocate(Short.BYTES + Long.BYTES);
 
         buffer.putShort(version);
-        buffer.putInt(blockNumber);
+        buffer.putLong(blockNumber);
 
         hash.update(buffer.array());
 

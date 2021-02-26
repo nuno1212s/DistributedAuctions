@@ -23,7 +23,7 @@ public class ScriptPubKey implements Hashable {
     @Override
     public void addToHash(MessageDigest digest) {
         //Floats have 4 bytes
-        var buffer = ByteBuffer.allocate(hashedPubKey.length + 4);
+        var buffer = ByteBuffer.allocate(hashedPubKey.length + Float.BYTES);
 
         buffer.put(hashedPubKey);
 

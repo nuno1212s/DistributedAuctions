@@ -6,6 +6,13 @@ import java.security.MessageDigest;
 
 public interface Hashable {
 
+    /**
+     * Add all the elements of this object to a hash that's being built.
+     *
+     * Should be recursive.
+     *
+     * @param hash
+     */
     void addToHash(MessageDigest hash);
 
     static byte[] calculateHashOf(Hashable hashable) {

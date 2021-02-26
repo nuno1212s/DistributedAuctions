@@ -16,6 +16,8 @@ import java.util.Arrays;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ScriptSignature implements Hashable {
 
+    private final long originatingBlock;
+
     private final byte[] originatingTXID;
 
     private final int outputIndex;
@@ -24,8 +26,11 @@ public class ScriptSignature implements Hashable {
 
     @Override
     public void addToHash(MessageDigest digest) {
-        var buffer = ByteBuffer.allocate(originatingTXID.length + 4 + publicKey.length + signature.length);
+        var buffer = ByteBuffer.allocate(originatingTXID.length
+                + Long.BYTES +
+                + Integer.BYTES + publicKey.length + signature.length);
 
+        buffer.putLong(originatingBlock);
         buffer.put(originatingTXID);
         buffer.putInt(outputIndex);
         buffer.put(publicKey);
@@ -43,7 +48,7 @@ public class ScriptSignature implements Hashable {
      * @param originatingTransaction
      * @return
      */
-    public boolean verifyOutputExists(Transaction originatingTransaction) {
+    public final boolean verifyOutputExists(Transaction originatingTransaction) {
 
         if (!Arrays.equals(originatingTXID, originatingTransaction.getTxID())) {
             System.out.println("The transaction provided is not the transaction that originated this input!");
@@ -82,7 +87,7 @@ public class ScriptSignature implements Hashable {
      *
      * @return
      */
-    public boolean verifyOwnership() {
+    public final boolean verifyOwnership() {
 
         final Signature signatures = Standards.getSignatureInstance();
 
@@ -97,8 +102,9 @@ public class ScriptSignature implements Hashable {
 
             signatures.initVerify(publicKey);
 
+            signatures.update(ByteBuffer.allocate(Long.BYTES).putLong(originatingBlock));
             signatures.update(this.getOriginatingTXID());
-            signatures.update(ByteBuffer.allocate(4).putInt(outputIndex));
+            signatures.update(ByteBuffer.allocate(Integer.BYTES).putInt(outputIndex));
             signatures.update(this.publicKey);
 
             return signatures.verify(this.signature);
@@ -139,9 +145,11 @@ public class ScriptSignature implements Hashable {
         try {
             signatures.initSign(correspondingKeyPair.getPrivate());
 
+            signatures.update(ByteBuffer.allocate(Long.BYTES).putLong(transaction.getBlockNumber()));
+
             signatures.update(transaction.getTxID());
 
-            signatures.update(ByteBuffer.allocate(4).putInt(outputIndex));
+            signatures.update(ByteBuffer.allocate(Integer.BYTES).putInt(outputIndex));
 
             signatures.update(correspondingKeyPair.getPublic().getEncoded());
 
@@ -153,7 +161,8 @@ public class ScriptSignature implements Hashable {
             return null;
         }
 
-        return new ScriptSignature(transaction.getTxID(), outputIndex,
+        return new ScriptSignature(transaction.getBlockNumber(),
+                transaction.getTxID(), outputIndex,
                 correspondingKeyPair.getPublic().getEncoded(),
                 resultSignature);
     }
