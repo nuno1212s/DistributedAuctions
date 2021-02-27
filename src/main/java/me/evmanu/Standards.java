@@ -6,9 +6,13 @@ public class Standards {
 
     public static final String DIGEST = "SHA3-256";
 
-    public static final String SIGNING = "SHA3-256withECDSA";
+    public static final String SIGNING = "SHA256withECDSA";
 
     public static final String KEY_FACTORY = "EC";
+
+    static {
+//        Security.addProvider(new BouncyCastleProvider());
+    }
 
     public static MessageDigest getDigestInstance() {
         try {
@@ -33,6 +37,17 @@ public class Standards {
     public static KeyFactory getKeyFactoryInstance() {
         try {
             return KeyFactory.getInstance(KEY_FACTORY);
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    public static KeyPairGenerator getKeyGenerator() {
+
+        try {
+            return KeyPairGenerator.getInstance(KEY_FACTORY);
         } catch (NoSuchAlgorithmException e) {
             e.printStackTrace();
         }

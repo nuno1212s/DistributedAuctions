@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import me.evmanu.Standards;
 import me.evmanu.daos.Hashable;
+import me.evmanu.util.Hex;
 
 import java.nio.ByteBuffer;
 import java.security.*;
@@ -14,14 +15,20 @@ import java.util.Arrays;
 
 @Getter
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+/*
+ *
+ */
 public class ScriptSignature implements Hashable {
 
+    //The block of the transaction
     private final long originatingBlock;
 
+    //The transaction that has this input as it's output at the index outputIndex
     private final byte[] originatingTXID;
 
     private final int outputIndex;
 
+    //The signature of this input (including the public key) and all the outputs
     private final byte[] publicKey, signature;
 
     @Override
@@ -73,8 +80,13 @@ public class ScriptSignature implements Hashable {
         try {
             var hashedResult = Standards.calculateHashedPublicKeyFrom(keyFactoryInstance.generatePublic(pubKey));
 
-            return Arrays.equals(output.getHashedPubKey(), hashedResult);
+            if (!Arrays.equals(output.getHashedPubKey(), hashedResult)) {
+                System.out.println("The public key provided does not match the public key of the output!");
 
+                return false;
+            }
+
+            return true;
         } catch (InvalidKeySpecException e) {
             e.printStackTrace();
         }
@@ -85,9 +97,10 @@ public class ScriptSignature implements Hashable {
     /**
      * Verifies that the signature was made by the public key that is stored in this object
      *
+     * @param owner The transaction that contains this input
      * @return
      */
-    public final boolean verifyOwnership() {
+    public final boolean verifyOwnership(Transaction owner) {
 
         final Signature signatures = Standards.getSignatureInstance();
 
@@ -107,6 +120,15 @@ public class ScriptSignature implements Hashable {
             signatures.update(ByteBuffer.allocate(Integer.BYTES).putInt(outputIndex));
             signatures.update(this.publicKey);
 
+            //We include the output that are planned so that no one can change the amount of coin
+            //That's going to each output (It was not possible to add or remove output,
+            //but we could shift the amount of money that is sent to each output)
+            for (ScriptPubKey output : owner.getOutputs()) {
+                signatures.update(output.getHashedPubKey());
+
+                signatures.update(ByteBuffer.allocate(Float.BYTES).putFloat(output.getAmount()));
+            }
+
             return signatures.verify(this.signature);
 
         } catch (InvalidKeySpecException | SignatureException | InvalidKeyException e) {
@@ -114,6 +136,17 @@ public class ScriptSignature implements Hashable {
         }
 
         return false;
+    }
+
+    @Override
+    public String toString() {
+        return "Input{" +
+                "originatingBlock=" + originatingBlock +
+                ", originatingTXID=" + Hex.toHexString(originatingTXID) +
+                ", outputIndex=" + outputIndex +
+                ", publicKey=" + Hex.toHexString(publicKey) +
+                ", signature=" + Hex.toHexString(signature) +
+                '}';
     }
 
     /**
@@ -127,7 +160,8 @@ public class ScriptSignature implements Hashable {
      * @return
      * @throws IllegalAccessException
      */
-    public static ScriptSignature fromOutput(Transaction transaction, int outputIndex, KeyPair correspondingKeyPair)
+    public static ScriptSignature fromOutput(Transaction transaction, int outputIndex, KeyPair correspondingKeyPair,
+                                             ScriptPubKey[] outputs)
             throws IllegalAccessException {
 
         ScriptPubKey output = transaction.getOutputs()[outputIndex];
@@ -135,7 +169,7 @@ public class ScriptSignature implements Hashable {
         var result = Standards.calculateHashedPublicKeyFrom(correspondingKeyPair.getPublic());
 
         if (!Arrays.equals(result, output.getHashedPubKey())) {
-            throw new IllegalAccessException("That key pair does not match the output you are requesting!");
+//            throw new IllegalAccessException("That key pair does not match the output you are requesting!");
         }
 
         final Signature signatures = Standards.getSignatureInstance();
@@ -152,6 +186,12 @@ public class ScriptSignature implements Hashable {
             signatures.update(ByteBuffer.allocate(Integer.BYTES).putInt(outputIndex));
 
             signatures.update(correspondingKeyPair.getPublic().getEncoded());
+
+            for (ScriptPubKey scriptPubKey : outputs) {
+                signatures.update(scriptPubKey.getHashedPubKey());
+
+                signatures.update(ByteBuffer.allocate(Float.BYTES).putFloat(scriptPubKey.getAmount()));
+            }
 
             resultSignature = signatures.sign();
 

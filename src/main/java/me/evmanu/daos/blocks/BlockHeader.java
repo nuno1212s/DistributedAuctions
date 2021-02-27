@@ -3,8 +3,6 @@ package me.evmanu.daos.blocks;
 import lombok.Getter;
 import me.evmanu.daos.transactions.MerkleVerifiableTransaction;
 
-import java.security.MessageDigest;
-
 @Getter
 /*
  * we separated the header from the block class as we want to attempt to implement SPV clients
@@ -16,6 +14,9 @@ public class BlockHeader {
 
     protected final short version;
 
+    /**
+     * The time that the last transaction was inserted into this block
+     */
     protected final long timeGenerated;
 
     /**

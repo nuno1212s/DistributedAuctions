@@ -1,5 +1,6 @@
 package me.evmanu.miner;
 
+import me.evmanu.daos.blocks.Block;
 import me.evmanu.daos.blocks.BlockChain;
 
 import java.util.LinkedList;
@@ -23,10 +24,13 @@ public class MiningManager {
         this.currentBlockChain = currentBlockChain;
 
         for (int i = 0; i < threadCount; i++) {
-            final Future<?> tasks = threadPool.submit(new MiningWorker(this.currentBlockChain));
+            final Future<?> tasks = threadPool.submit(new MiningWorker(this, this.currentBlockChain));
         }
     }
 
+    public void minedBlock(Block block) {
+
+    }
 
 
 }

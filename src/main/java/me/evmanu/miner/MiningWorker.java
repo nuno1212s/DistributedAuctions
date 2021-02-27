@@ -8,11 +8,14 @@ import me.evmanu.daos.blocks.blockbuilders.PoWBlockBuilder;
 @Getter
 public class MiningWorker implements Runnable {
 
+    private MiningManager miningManager;
+
     private BlockChain blockBuilder;
 
     private PoWBlockBuilder individualInstance;
 
-    public MiningWorker(BlockChain blockBuilder) {
+    public MiningWorker(MiningManager miningManager, BlockChain blockBuilder) {
+        this.miningManager = miningManager;
         this.blockBuilder = blockBuilder;
 
         try {

@@ -1,5 +1,7 @@
 package me.evmanu.daos.blocks.blockbuilders;
 
+import me.evmanu.daos.blocks.Block;
+
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -22,6 +24,12 @@ public class PoWBlockBuilder extends BlockBuilder {
         workProof.set(bigInteger);
 
         return bigInteger;
+    }
+
+    @Override
+    public Block build() {
+        //TODO
+        return null;
     }
 
     @Override

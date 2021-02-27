@@ -1,24 +1,33 @@
 package me.evmanu.daos.blocks.blockbuilders;
 
+import lombok.Getter;
 import me.evmanu.daos.Hashable;
+import me.evmanu.daos.blocks.Block;
 import me.evmanu.daos.transactions.Transaction;
+import me.evmanu.util.Hex;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class BlockBuilder implements Hashable, Cloneable {
 
+    @Getter
     private final long block_number;
 
     private final short version;
 
+    @Getter
     private final byte[] previousBlockHash;
 
     private AtomicReference<byte[]> merkleRoot;
 
+    /**
+     * This is thread-safe as the map contained is never altered, only copied and then the reference is updated
+     */
     private AtomicReference<LinkedHashMap<byte[], Transaction>> transactions;
 
     private AtomicLong timeGenerated;
@@ -52,7 +61,18 @@ public abstract class BlockBuilder implements Hashable, Cloneable {
 
         this.timeGenerated.set(System.currentTimeMillis());
 
+    }
 
+    public boolean hasTransaction(byte[] txID) {
+        return getTransactionsCurrentlyInBlock().containsKey(txID);
+    }
+
+    public LinkedHashMap<byte[], Transaction> getTransactionsCurrentlyInBlock() {
+        return this.transactions.get();
+    }
+
+    public Transaction getTransactionByID(byte[] txID) {
+        return getTransactionsCurrentlyInBlock().get(txID);
     }
 
     private byte[] calculateMerkleRoot(LinkedHashMap<byte[], Transaction> transactions) {
@@ -100,6 +120,7 @@ public abstract class BlockBuilder implements Hashable, Cloneable {
         sub_addToHash(hash);
     }
 
+    public abstract Block build();
 
     @Override
     public Object clone() throws CloneNotSupportedException {

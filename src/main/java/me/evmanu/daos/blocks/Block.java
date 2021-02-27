@@ -86,11 +86,7 @@ public abstract class Block implements Hashable {
 
         hash.update(header.getMerkleRoot());
 
-        transactions.forEach((txID, transaction) ->  {
-
-            transaction.addToHash(hash);
-
-        });
+        transactions.forEach((txID, transaction) -> transaction.addToHash(hash));
 
         sub_addToHash(hash);
     }
