@@ -73,4 +73,21 @@ public class Standards {
 
     }
 
+    // TODO
+    public static byte[] calculateHashedFromByte(byte[] target) {
+        var digestInstance = getDigestInstance();
+
+        assert digestInstance != null;
+
+        digestInstance.update(target);
+
+        byte[] digestedByte = digestInstance.digest();
+
+        digestInstance.reset();
+
+        digestInstance.update(digestedByte);
+
+        return digestInstance.digest();
+    }
+
 }
