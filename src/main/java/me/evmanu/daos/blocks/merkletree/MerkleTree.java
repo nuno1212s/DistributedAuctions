@@ -17,8 +17,9 @@ public class MerkleTree {
 
     private List<MerkleTreeNode> leaves;
 
-
     public MerkleTree() {
+        this.nodes = new ArrayList<>();
+        this.leaves = new ArrayList<>();
     }
 
     /**
@@ -70,7 +71,7 @@ public class MerkleTree {
         List<MerkleTreeNode> auxNodes = new ArrayList<>();
 
         for (int i = 0; i < this.nodes.size(); i += 2) {
-            MerkleTreeNode parent = new MerkleTreeNode( this.leaves.get(i), this.leaves.get(i + 1) );
+            MerkleTreeNode parent = new MerkleTreeNode( this.nodes.get(i), this.nodes.get(i + 1) );
 
             auxNodes.add(parent);
         }
@@ -85,7 +86,7 @@ public class MerkleTree {
 
         if(oddOrEven(this.nodes.size())) this.nodes.add(null);
         
-        this.makeTree(); // recursive
+        this.makeTree();
     }
 
 
@@ -99,8 +100,6 @@ public class MerkleTree {
 
         return this.root.getHash();
     }
-
-
 
     public static void main(String[] Args) {
         MerkleTree mt = new MerkleTree();
@@ -118,18 +117,12 @@ public class MerkleTree {
         MerkleTreeNode mt5 = new MerkleTreeNode(hash5);
         MerkleTreeNode mt6 = new MerkleTreeNode(hash5);
 
-        List<MerkleTreeNode> aux = new ArrayList<>();
-        List<MerkleTreeNode> aux2 = new ArrayList<>();
-        mt.nodes = aux2;
-        mt.leaves = aux;
-
         mt.leaves.add(mt1);
         mt.leaves.add(mt2);
         mt.leaves.add(mt3);
         mt.leaves.add(mt4);
         mt.leaves.add(mt5);
         //mt.leaves.add(mt6);
-
 
         byte[] finalHash = mt.initMerkleTree();
 
