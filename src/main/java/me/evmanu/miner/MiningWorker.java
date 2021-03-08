@@ -28,8 +28,6 @@ public class MiningWorker implements Runnable {
     @Override
     public void run() {
 
-        final PoWBlockBuilder currentBlock = (PoWBlockBuilder) blockBuilder.getCurrentBlock();
-
         //work work work
 
     }

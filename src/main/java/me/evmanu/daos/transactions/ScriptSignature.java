@@ -169,6 +169,7 @@ public class ScriptSignature implements Hashable {
         var result = Standards.calculateHashedPublicKeyFrom(correspondingKeyPair.getPublic());
 
         if (!Arrays.equals(result, output.getHashedPubKey())) {
+            //TODO: Add this back, this is just for testing wrong keypairs
 //            throw new IllegalAccessException("That key pair does not match the output you are requesting!");
         }
 

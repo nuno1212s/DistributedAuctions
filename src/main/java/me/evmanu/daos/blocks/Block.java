@@ -29,7 +29,30 @@ public abstract class Block implements Hashable {
      */
     protected final LinkedHashMap<byte[], Transaction> transactions;
 
-    public final boolean verifyBlockID() {
+    /**
+     * Verify that the previous block hash matches
+     * The hash of the previous block in the blockchain
+     * @param previousBlock
+     * @return
+     */
+    protected final boolean verifyPreviousBlockHash(Block previousBlock) {
+        if (previousBlock == null) {
+            return this.getHeader().getPreviousBlockHash().length == 0;
+        }
+
+        return Arrays.equals(this.getHeader().getPreviousBlockHash(),
+                previousBlock.getHeader().getBlockHash());
+    }
+
+    protected final boolean verifyMerkleRoot() {
+        return true;
+    }
+
+    /**
+     * Verify that the block hash of this block is correct
+     * @return
+     */
+    protected final boolean verifyBlockID() {
 
         final var digest = Standards.getDigestInstance();
 
@@ -72,7 +95,7 @@ public abstract class Block implements Hashable {
 
         buffer.clear();
 
-        //TODO: Does this even work? The memory is 8 bytes but I'm only filling up 2. Does he self adjust?
+        //TODO: Does this even work? The memory is 8 bytes but I'm only filling up 2. Does it self adjust?
         //Is this world real?
         buffer.putShort(header.getVersion());
         hash.update(buffer);
@@ -90,6 +113,8 @@ public abstract class Block implements Hashable {
 
         sub_addToHash(hash);
     }
+
+    public abstract boolean isValid();
 
     /**
      * Instead of allowing overloads to the block hash, making this method always be executed after we finish adding the

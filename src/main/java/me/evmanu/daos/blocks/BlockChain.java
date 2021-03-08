@@ -1,6 +1,7 @@
 package me.evmanu.daos.blocks;
 
 import lombok.Getter;
+import me.evmanu.daos.Hashable;
 import me.evmanu.daos.blocks.blockbuilders.BlockBuilder;
 import me.evmanu.daos.blocks.blockbuilders.PoWBlockBuilder;
 import me.evmanu.daos.transactions.ScriptPubKey;
@@ -19,6 +20,9 @@ public class BlockChain {
 
     /**
      * Blocks indexed by their block number
+     * <p>
+     * Every block that is in this list has already been verified and is certain
+     * to be correct according to the block chain
      */
     protected List<Block> blocks;
 
@@ -43,6 +47,10 @@ public class BlockChain {
                 new byte[0]);
     }
 
+    public Block getLatestValidBlock() {
+        return getBlockByNumber(this.blockCount - 1);
+    }
+
     public Block getBlockByNumber(long blockNumber) {
 
         //For this assignment, I think we can allow for a limit of 2^32 blocks.
@@ -52,6 +60,55 @@ public class BlockChain {
 
     //TODO: Add the verification of new blocks
     public boolean verifyBlock(Block block) {
+
+        if (!block.verifyBlockID()) {
+            System.out.println("The block hash does not match the content of the block.");
+            return false;
+        }
+
+        if (!block.isValid()) {
+            System.out.println("The block does not have the correct pow/pos.");
+
+            return false;
+        }
+
+        var blockHeader = block.getHeader();
+
+        var blockNumber = blockHeader.getBlockNumber();
+
+        Block prevBlock = null;
+
+        if (blockNumber > 0) {
+
+            if (blockNumber <= getBlockCount()) {
+                System.out.println("This block chain is already further ahead of the block received.");
+
+                return false;
+            }
+
+            prevBlock = getBlockByNumber(blockNumber - 1);
+        }
+
+        if (!block.verifyPreviousBlockHash(prevBlock)) {
+            System.out.println("Previous block hash is not correct");
+            return false;
+        }
+
+        if (!block.verifyMerkleRoot()) {
+            return false;
+        }
+
+        LinkedHashMap<byte[], Transaction> verifiedTransactions = new LinkedHashMap<>();
+
+        //We want to gradually verify transactions, including the transactions that have already been
+        //Verified, so that there is no double spending possibility inside the block
+        for (Map.Entry<byte[], Transaction> transaction : block.getTransactions().entrySet()) {
+            if (!verifyTransaction(transaction.getValue(), block.getHeader().getBlockNumber(), verifiedTransactions)) {
+                return false;
+            }
+
+            verifiedTransactions.put(transaction.getKey(), transaction.getValue());
+        }
 
         return true;
     }
@@ -98,9 +155,10 @@ public class BlockChain {
      * @param newTransaction
      * @return
      */
-    private boolean verifyDoubleSpending(Transaction newTransaction) {
+    private boolean verifyDoubleSpending(Transaction newTransaction, long currentBlockBeingChecked,
+                                         LinkedHashMap<byte[], Transaction> transactionsBeingVerified) {
 
-        long oldestOriginatingBlock = Long.MAX_VALUE;
+        long oldestOriginatingBlock = 0;
 
         Map<byte[], List<Integer>> outputsToCheck = new HashMap<>();
 
@@ -114,7 +172,7 @@ public class BlockChain {
 
             outputsToCheck.put(originatingTXID, outputsForTrans);
 
-            if (oldestOriginatingBlock > input.getOriginatingBlock()) {
+            if (oldestOriginatingBlock < input.getOriginatingBlock()) {
                 oldestOriginatingBlock = input.getOriginatingBlock();
             }
         }
@@ -132,16 +190,23 @@ public class BlockChain {
             }
         }
 
-        //Also verify the current block that we are building for double spending.
-        final var transactionsInMiningBlock = getCurrentBlock().getTransactionsCurrentlyInBlock();
 
-        if (getCurrentBlock().hasTransaction(newTransaction.getTxID())) {
-            System.out.println("Attempting to verify transaction that is already contained in the latest block.");
-            return false;
-        }
+        if (currentBlockBeingChecked > 0) {
 
-        if (!verifyDoubleSpendingInTransactions(transactionsInMiningBlock, outputsToCheck)) {
-            return false;
+            return verifyDoubleSpendingInTransactions(transactionsBeingVerified, outputsToCheck);
+
+        } else {
+            //Also verify the current block that we are building for double spending.
+            final var transactionsInMiningBlock = getCurrentBlock().getTransactionsCurrentlyInBlock();
+
+            if (getCurrentBlock().hasTransaction(newTransaction.getTxID())) {
+                System.out.println("Attempting to verify transaction that is already contained in the latest block.");
+                return false;
+            }
+
+            if (!verifyDoubleSpendingInTransactions(transactionsInMiningBlock, outputsToCheck)) {
+                return false;
+            }
         }
 
         return true;
@@ -155,35 +220,11 @@ public class BlockChain {
         return this.blockCount >= blockNumber;
     }
 
-    private Transaction verifyTransactionExistsInBlockChain(ScriptSignature input) {
-
-        final var originatingBlock = getBlockByNumber(input.getOriginatingBlock());
-
-        if (originatingBlock == null) {
-            return null;
-        }
+    private Transaction verifyTransactionExistsInTransactions(ScriptSignature input,
+                                                              LinkedHashMap<byte[], Transaction> transactions) {
 
         //Verify that the transaction that originated this input exists in the blockchain
-        if (!originatingBlock.verifyTransactionIsInBlock(input.getOriginatingTXID())) {
-            return null;
-        }
-
-        //Verify that the transaction contains the output that generates the input
-        final var parentT = originatingBlock.getTransactionByID(input.getOriginatingTXID());
-
-        if (!input.verifyOutputExists(parentT)) {
-            System.out.println("Output does not exist");
-            return null;
-        }
-
-        return parentT;
-    }
-
-    private Transaction verifyTransactionExistsInLatestBlock(ScriptSignature input) {
-        final var currentBlock = getCurrentBlock();
-
-        //Verify that the transaction that originated this input exists in the blockchain
-        final var transactionByID = currentBlock.getTransactionByID(input.getOriginatingTXID());
+        final var transactionByID = transactions.getOrDefault(input.getOriginatingTXID(), null);
 
         if (transactionByID == null) {
             return null;
@@ -198,16 +239,8 @@ public class BlockChain {
         return transactionByID;
     }
 
-    /**
-     * Verifies that a transaction is valid according to this blockchain.
-     *
-     * Checks for amount matching (Sum of inputs = Sum of outputs), verifies that the person making this transaction
-     * Owns the outputs that it is using, verifies that the outputs that this transaction is referring to exist,
-     * Verifies that the output haven't been spent already.
-     *
-     * @return
-     */
-    public boolean verifyTransaction(Transaction transaction) {
+    protected boolean verifyTransaction(Transaction transaction, long currentlyExaminingBlock,
+                                        LinkedHashMap<byte[], Transaction> blockTransactions) {
 
         if (!transaction.verifyTransactionID()) {
             return false;
@@ -231,12 +264,20 @@ public class BlockChain {
 
             Transaction parentT = null;
 
-            if (doesBlockExist(input.getOriginatingBlock())) {
+            if (doesBlockExist(input.getOriginatingBlock()) || (currentlyExaminingBlock == input.getOriginatingBlock())) {
+
+                LinkedHashMap<byte[], Transaction> transactions;
+
                 if (isMinted(input.getOriginatingBlock())) {
-                    parentT = verifyTransactionExistsInBlockChain(input);
+                    transactions = getBlockByNumber(input.getOriginatingBlock()).getTransactions();
+                } else if (currentlyExaminingBlock == input.getOriginatingBlock()) {
+                    transactions = blockTransactions;
                 } else {
-                    parentT = verifyTransactionExistsInLatestBlock(input);
+                    transactions = getCurrentBlock().getTransactionsCurrentlyInBlock();
                 }
+
+                parentT = verifyTransactionExistsInTransactions(input, transactions);
+
             } else {
                 System.out.println("Block does not exist");
                 return false;
@@ -261,11 +302,27 @@ public class BlockChain {
 
         //Since this is the most expensive part of verifying a transaction, only do it when everything else
         //Has already been verified
-        if (!verifyDoubleSpending(transaction)) {
+        if (!verifyDoubleSpending(transaction, currentlyExaminingBlock, blockTransactions)) {
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * Verifies that a transaction is valid according to this blockchain.
+     * <p>
+     * Checks for amount matching (Sum of inputs = Sum of outputs), verifies that the person making this transaction
+     * Owns the outputs that it is using, verifies that the outputs that this transaction is referring to exist,
+     * Verifies that the output haven't been spent already.
+     *
+     * @return
+     */
+    public boolean verifyTransaction(Transaction transaction) {
+        //Passing -1 and null makes it check against the current block that's being built
+        //When we are verifying external blocks, these arguments will be used to know what block is
+        //Being checked
+        return verifyTransaction(transaction, -1, null);
     }
 
 }

@@ -4,19 +4,17 @@ import lombok.Getter;
 import me.evmanu.daos.Hashable;
 import me.evmanu.daos.blocks.Block;
 import me.evmanu.daos.transactions.Transaction;
-import me.evmanu.util.Hex;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class BlockBuilder implements Hashable, Cloneable {
 
     @Getter
-    private final long block_number;
+    private final long blockNumber;
 
     private final short version;
 
@@ -32,8 +30,8 @@ public abstract class BlockBuilder implements Hashable, Cloneable {
 
     private AtomicLong timeGenerated;
 
-    public BlockBuilder(long block_number, short version, byte[] previousBlockHash) {
-        this.block_number = block_number;
+    public BlockBuilder(long blockNumber, short version, byte[] previousBlockHash) {
+        this.blockNumber = blockNumber;
         this.version = version;
         this.previousBlockHash = previousBlockHash;
         this.transactions = new AtomicReference<>(new LinkedHashMap<>());
@@ -93,7 +91,7 @@ public abstract class BlockBuilder implements Hashable, Cloneable {
 
         var buffer = ByteBuffer.allocate(Long.BYTES);
 
-        hash.update(buffer.putLong(block_number));
+        hash.update(buffer.putLong(blockNumber));
 
         buffer.clear();
 
