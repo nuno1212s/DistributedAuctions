@@ -6,6 +6,7 @@ import me.evmanu.daos.transactions.Transaction;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.lang.Math;
 
 @Getter
 public class MerkleTree {
@@ -39,12 +40,12 @@ public class MerkleTree {
 
         for(byte[] key : transactions.keySet() ) {
             Transaction currentTransaction = transactions.get(key);
-            MerkleTreeNode auxNode = new MerkleTreeNode(currentTransaction.getTxID());
-            this.leaves.add(auxNode);
+            //MerkleTreeNode auxNode = new MerkleTreeNode(currentTransaction.getTxID()); // TODO: comentado para testes
+            MerkleTreeNode auxNode = new MerkleTreeNode(key);
+            addLeaf(auxNode);
         }
 
         if(oddOrEven(this.leaves.size())) this.leaves.add(null); // se houverem transações impares, coloco uma transação null para ficar par
-
     }
 
     public void createParentsLeaves() {
@@ -58,7 +59,7 @@ public class MerkleTree {
 
             MerkleTreeNode parent = new MerkleTreeNode( this.leaves.get(i), this.leaves.get(i + 1) );
 
-            this.nodes.add(parent);
+            addNode(parent);
         }
 
         if(oddOrEven(this.nodes.size())) this.nodes.add(null);
@@ -92,15 +93,114 @@ public class MerkleTree {
         this.leaves.add(node);
     }
 
-    public byte[] initMerkleTree() { // LinkedHashMap<byte[], Transaction> transactions
+    public void addNode(MerkleTreeNode node) {
+        this.nodes.add(node);
+    }
 
-        //this.getTransactionsHashes(transactions);
+
+    public byte[] getRootHash(LinkedHashMap<byte[], Transaction> transactions) { // LinkedHashMap<byte[], Transaction> transactions
+
+        this.getTransactionsHashes(transactions);
 
         this.createParentsLeaves();
 
         this.makeTree();
 
         return this.root.getHash();
+    }
+
+    public void initMerkleTree2(LinkedHashMap<byte[], Transaction> transactions) {
+
+        this.getTransactionsHashes(transactions);
+
+        this.createParentsLeaves();
+
+        this.makeTree();
+    }
+
+    public int getTreeLevel(int leavesNumber)  {
+
+        float logCalc = (float) (Math.log(leavesNumber) / Math.log(2)); // log2(n)
+
+        int aux = (int) logCalc; // verify integer
+
+        if(logCalc % aux == 0 || logCalc == 1)
+            return (int) logCalc;
+
+        return 1 + ((int) logCalc);
+    }
+
+    public int getIndex(List<MerkleTreeNode> leaves, byte[] targetHash) {
+
+        for (int i = 0; i < leaves.size(); i++) {
+            if(leaves.get(i).getHash().equals(targetHash))
+                return i;
+        }
+
+        return -1;
+    }
+
+    public List<byte[]> recursive(MerkleTreeNode curNode, List<byte[]> nodeList, float[] leavesRange, int treeLevel,
+                                  int curLevel, int transactionIndex) {
+
+        float halfTree = (int) (  (leavesRange[1] - (leavesRange[0]-1)) / 2);
+
+        if(treeLevel != curLevel) {
+
+            // left side
+            if(transactionIndex < ((leavesRange[1] + 1 ) - halfTree)) {
+
+                if(curNode.getRightNode() != null) {
+                    nodeList.add(curNode.getRightNode().getHash());
+
+                    curNode = curNode.getLeftNode();
+                } else {
+                    curNode = curNode.getLeftNode();
+                }
+
+                // TODO: Quando um ramo direto contem nulls, ver isso
+
+                leavesRange[1] -= halfTree;
+
+            // right side
+            } else {
+
+                nodeList.add(curNode.getLeftNode().getHash());
+
+                curNode = curNode.getRightNode();
+
+                leavesRange[0] += halfTree;
+            }
+
+            nodeList = recursive(curNode, nodeList, leavesRange, treeLevel, curLevel + 1, transactionIndex);
+        }
+
+        return nodeList;
+    }
+
+    //(LinkedHashMap<byte[], Transaction> transactions, Transaction targetTransaction)
+    public List<byte[]> getMerkleHashes(LinkedHashMap<byte[], Transaction> transactions, byte[] targetHash) {
+
+        List<byte[]> nodeList = new ArrayList<>();
+
+        initMerkleTree2(transactions);
+
+        int transactionIndex = getIndex(this.leaves, targetHash); // TODO: Depois substituir byte[] por Transaction
+        if(transactionIndex == -1) {
+            System.out.println("Error, the list does not contain the target transaction");
+            return null;
+        }
+
+        int treeLevel = getTreeLevel(this.leaves.size());
+        float maxLeaves = (float) Math.pow(2,treeLevel); // maximum number of leaves, according to the level of the tree
+
+        float[] leavesRange = new float[2];
+        leavesRange[0] = 0;
+        leavesRange[1] = maxLeaves - 1;
+
+        nodeList = recursive(this.getRoot(), nodeList, leavesRange, treeLevel, 0, transactionIndex);
+
+        return nodeList;
     }
 
 }

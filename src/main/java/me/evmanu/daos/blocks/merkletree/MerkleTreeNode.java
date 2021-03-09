@@ -1,9 +1,9 @@
 package me.evmanu.daos.blocks.merkletree;
 
 import lombok.Getter;
-
 import lombok.Setter;
 import me.evmanu.Standards;
+import me.evmanu.util.Hex;
 
 @Getter
 public class MerkleTreeNode {
@@ -38,12 +38,18 @@ public class MerkleTreeNode {
         }
     }
 
-    // TODO: Nao sei se isto funciona direito
     public byte[] generateHash(byte[] leftNode, byte[] rightNode) {
 
         byte[] mergedHashes = concatenateTwoBytes(leftNode, rightNode);
 
-        return Standards.calculateHashedFromByte(mergedHashes);
+        String s = Hex.toHexString(mergedHashes);
+        String s1 = Hex.toHexString(leftNode);
+        String s2 = Hex.toHexString(rightNode);
+        //System.out.println(s1 + " + " + s2 + " = " + s);
+
+        //return Standards.calculateHashedFromByte(mergedHashes); // COMENTADO PARA TESTE
+
+        return mergedHashes;
     }
 
     public byte[] concatenateTwoBytes(byte[] a, byte[] b) {
