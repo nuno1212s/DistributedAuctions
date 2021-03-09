@@ -81,12 +81,6 @@ public class Standards {
 
         digestInstance.update(target);
 
-        byte[] digestedByte = digestInstance.digest();
-
-        digestInstance.reset();
-
-        digestInstance.update(digestedByte);
-
         return digestInstance.digest();
     }
 
