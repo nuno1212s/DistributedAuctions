@@ -17,18 +17,28 @@ public class ByteHelper {
             throw new IllegalArgumentException("Too many ones for a byte!");
         }
 
-        byte initialByte = 0x00;
-
-        for (int i = 0; i < Byte.SIZE; i++) {
-
-            if (i < ones) {
-                initialByte |= 0x01;
-            }
-
-            initialByte = (byte) (initialByte << 1);
+        switch (ones) {
+            case 0:
+                return 0x00;
+            case 1:
+                return (byte) 0x80;
+            case 2:
+                return (byte) 0xC0;
+            case 3:
+                return (byte) 0xD0;
+            case 4:
+                return (byte) 0xF0;
+            case 5:
+                return (byte) 0xF8;
+            case 6:
+                return (byte) 0xFC;
+            case 7:
+                return (byte) 0xFD;
+            case 8:
+                return (byte) 0xFF;
         }
 
-        return initialByte;
+        return 0x00;
     }
 
 }
