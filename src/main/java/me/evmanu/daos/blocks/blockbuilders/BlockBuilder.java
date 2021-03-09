@@ -16,6 +16,7 @@ public abstract class BlockBuilder implements Hashable, Cloneable {
     @Getter
     private final long blockNumber;
 
+    @Getter
     private final short version;
 
     @Getter

@@ -42,9 +42,7 @@ public class PoWBlock extends Block {
             if ((byteBlock & byteWithFirstOnes) != 0) {
                 return false;
             }
-
         }
-
         return true;
     }
 

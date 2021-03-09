@@ -1,4 +1,5 @@
 import me.evmanu.Standards;
+import me.evmanu.daos.blocks.Block;
 import me.evmanu.daos.blocks.BlockChain;
 import me.evmanu.daos.blocks.blockbuilders.BlockBuilder;
 import me.evmanu.daos.blocks.blockbuilders.PoWBlockBuilder;
@@ -23,13 +24,19 @@ public class BlockChainTests {
         var output = new ScriptPubKey[outputs.length];
 
         for (int i = 0; i < outputs.length; i++) {
-
             var outputI = outputs[i];
 
             output[i] = new ScriptPubKey(Standards.calculateHashedPublicKeyFrom(outputI.getPublic()), amountPerOutput);
         }
 
         return new Transaction(blockNum, blockChain.getVersion(), new ScriptSignature[0], output);
+    }
+
+    private Transaction initTransactionWithPreviousOutputs(ScriptPubKey[] outputsToUse, KeyPair[] correspondingKeys,
+                                                           byte[][] outputs, float[] amounts) {
+
+        return null;
+
     }
 
     @Test
@@ -193,9 +200,23 @@ public class BlockChainTests {
         BlockBuilder block = new PoWBlockBuilder(blockChain.getBlockCount(), blockChain.getVersion(), prevBlockHash);
 
         final var transaction = initGenesisTransactionFor(block.getBlockNumber(), 10, keyPair);
+
+
         final var transaction2 = initGenesisTransactionFor(block.getBlockNumber(), 20, keyPair);
 
+        assert blockChain.verifyTransaction(transaction);
 
+        assert blockChain.verifyTransaction(transaction2);
+
+        block.addTransaction(transaction);
+
+        block.addTransaction(transaction2);
+
+        var builtBlock = block.build();
+
+        assert blockChain.verifyBlock(builtBlock);
+
+        blockChain.addBlock(builtBlock);
     }
 
 }

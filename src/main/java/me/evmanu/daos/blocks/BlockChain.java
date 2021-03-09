@@ -52,10 +52,46 @@ public class BlockChain {
     }
 
     public Block getBlockByNumber(long blockNumber) {
-
         //For this assignment, I think we can allow for a limit of 2^32 blocks.
         //But, TODO: Change this to allow for larger block sizes
         return blocks.get(((Long) blockNumber).intValue());
+    }
+
+    /**
+     * Add a block to the block chain
+     *
+     * This assumes that the block has already been verified
+     *
+     * @param block
+     */
+    public void addBlock(Block block) {
+        this.blocks.add(block);
+
+        this.blockCount++;
+
+        var previousBlock = this.currentBlock;
+
+        this.currentBlock = new PoWBlockBuilder(this.blockCount, this.version, block.getHeader().getBlockHash());
+
+        for (Map.Entry<byte[], Transaction> transactions : previousBlock.getTransactionsCurrentlyInBlock().entrySet()) {
+
+            if (block.verifyTransactionIsInBlock(transactions.getKey())) {
+                //The transaction has already been included into the newly generated block
+                continue;
+            }
+
+            if (!verifyTransaction(transactions.getValue())) {
+                //This transaction is no longer valid after the new block that we have received
+
+                System.out.println("Transaction is no longer valid after new block has been mined");
+                continue;
+            }
+
+            //If the transaction was not included in the most recent block and is still
+            //valid with all the new transactions that have been included in the block
+            //Then we still want to include it into the block that we are currently calculating
+            this.currentBlock.addTransaction(transactions.getValue());
+        }
     }
 
     //TODO: Add the verification of new blocks

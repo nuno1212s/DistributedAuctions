@@ -31,7 +31,6 @@ public class MerkleTreeTests {
             byte[] finalHash = mt.initMerkleTree();
 
             System.out.println("HASH: " + finalHash);
-
     }
 
 }
