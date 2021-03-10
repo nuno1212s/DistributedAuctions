@@ -22,6 +22,11 @@ public class MerkleTree {
         this.leaves = new ArrayList<>();
     }
 
+    enum Direction {
+        LEFT,
+        RIGHT
+    }
+
     /**
      * False means even
      * True means odd
@@ -109,25 +114,13 @@ public class MerkleTree {
         return this.root.getHash();
     }
 
-    public void initMerkleTree2(LinkedHashMap<byte[], Transaction> transactions) {
+    public void initMerkleTree(LinkedHashMap<byte[], Transaction> transactions) {
 
         this.getTransactionsHashes(transactions);
 
         this.createParentsLeaves();
 
         this.makeTree();
-    }
-
-    public int getTreeLevel(int leavesNumber)  {
-
-        float logCalc = (float) (Math.log(leavesNumber) / Math.log(2)); // log2(n)
-
-        int aux = (int) logCalc; // verify integer
-
-        if(logCalc % aux == 0 || logCalc == 1)
-            return (int) logCalc;
-
-        return 1 + ((int) logCalc);
     }
 
     public int getIndex(List<MerkleTreeNode> leaves, byte[] targetHash) {
@@ -140,50 +133,37 @@ public class MerkleTree {
         return -1;
     }
 
-    public List<byte[]> recursive(MerkleTreeNode curNode, List<byte[]> nodeList, float[] leavesRange, int treeLevel,
-                                  int curLevel, int transactionIndex) {
+    public List<byte[]> climbTreeToGetDependentNodes(MerkleTreeNode curNode, List<byte[]> nodeList) {
 
-        float halfTree = (int) (  (leavesRange[1] - (leavesRange[0]-1)) / 2);
+        Direction curDirection;
 
-        if(treeLevel != curLevel) {
+        MerkleTreeNode father = curNode.getParentNode();
 
-            // left side
-            if(transactionIndex < ((leavesRange[1] + 1 ) - halfTree)) {
+        if(father.getLeftNode().equals(curNode))
+            curDirection = Direction.LEFT;
+        else
+            curDirection = Direction.RIGHT;
 
-                if(curNode.getRightNode() != null) {
-                    nodeList.add(curNode.getRightNode().getHash());
 
-                    curNode = curNode.getLeftNode();
-                } else {
-                    curNode = curNode.getLeftNode();
-                }
+        if(curDirection == Direction.LEFT) {
+            if(father.getRightNode() != null)
+                nodeList.add(father.getRightNode().getHash());
 
-                // TODO: Quando um ramo direto contem nulls, ver isso
-
-                leavesRange[1] -= halfTree;
-
-            // right side
-            } else {
-
-                nodeList.add(curNode.getLeftNode().getHash());
-
-                curNode = curNode.getRightNode();
-
-                leavesRange[0] += halfTree;
-            }
-
-            nodeList = recursive(curNode, nodeList, leavesRange, treeLevel, curLevel + 1, transactionIndex);
+        } else {
+            nodeList.add(father.getLeftNode().getHash());
         }
+
+        if(father.getParentNode() == null) return nodeList;
+
+        nodeList = climbTreeToGetDependentNodes(father, nodeList);
 
         return nodeList;
     }
 
-    //(LinkedHashMap<byte[], Transaction> transactions, Transaction targetTransaction)
     public List<byte[]> getMerkleHashes(LinkedHashMap<byte[], Transaction> transactions, byte[] targetHash) {
-
         List<byte[]> nodeList = new ArrayList<>();
 
-        initMerkleTree2(transactions);
+        initMerkleTree(transactions);
 
         int transactionIndex = getIndex(this.leaves, targetHash); // TODO: Depois substituir byte[] por Transaction
         if(transactionIndex == -1) {
@@ -191,16 +171,10 @@ public class MerkleTree {
             return null;
         }
 
-        int treeLevel = getTreeLevel(this.leaves.size());
-        float maxLeaves = (float) Math.pow(2,treeLevel); // maximum number of leaves, according to the level of the tree
-
-        float[] leavesRange = new float[2];
-        leavesRange[0] = 0;
-        leavesRange[1] = maxLeaves - 1;
-
-        nodeList = recursive(this.getRoot(), nodeList, leavesRange, treeLevel, 0, transactionIndex);
+        nodeList = climbTreeToGetDependentNodes(this.leaves.get(transactionIndex), nodeList);
 
         return nodeList;
     }
 
 }
+

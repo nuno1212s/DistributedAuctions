@@ -56,10 +56,11 @@ public class MerkleTreeTests {
         transactions.put(hash6, null);
         transactions.put(hash7, null);
 
-        // GET MERKLE NODES --------------------------
-        MerkleTree mt = new MerkleTree();
 
-        List<byte[]> list = mt.getMerkleHashes(transactions, hash5); // get dependent nodes of hash$
+        // GET MERKLE NODES 2.0 --------------------------
+        MerkleTree mtr = new MerkleTree();
+
+        List<byte[]> listNodes = mtr.getMerkleHashes(transactions, hash2); // get dependent nodes of hash$
 
         // GET ROOT HASH --------------------------
         MerkleTree mt2 = new MerkleTree();
