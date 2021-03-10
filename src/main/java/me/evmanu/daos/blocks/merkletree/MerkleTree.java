@@ -1,9 +1,11 @@
 package me.evmanu.daos.blocks.merkletree;
 
 import lombok.Getter;
+import me.evmanu.Standards;
 import me.evmanu.daos.transactions.Transaction;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.lang.Math;
@@ -148,6 +150,8 @@ public class MerkleTree {
         if(curDirection == Direction.LEFT) {
             if(father.getRightNode() != null)
                 nodeList.add(father.getRightNode().getHash());
+            else
+                nodeList.add(father.getHash());
 
         } else {
             nodeList.add(father.getLeftNode().getHash());
@@ -165,7 +169,7 @@ public class MerkleTree {
 
         initMerkleTree(transactions);
 
-        int transactionIndex = getIndex(this.leaves, targetHash); // TODO: Depois substituir byte[] por Transaction
+        int transactionIndex = getIndex(this.leaves, targetHash); // TODO: Depois substituir o tipo byte[] por Transaction
         if(transactionIndex == -1) {
             System.out.println("Error, the list does not contain the target transaction");
             return null;
@@ -174,6 +178,35 @@ public class MerkleTree {
         nodeList = climbTreeToGetDependentNodes(this.leaves.get(transactionIndex), nodeList);
 
         return nodeList;
+    }
+
+    // TODO: change to MerkleVerifiableTransaction?
+    public boolean verifyTransaction(LinkedHashMap<byte[], Transaction> transactions, byte[] targetHash, byte[] merkleRoot) {
+
+        List<byte[]> nodeList = getMerkleHashes(transactions, targetHash);
+
+        MerkleTreeNode aux = new MerkleTreeNode(targetHash); // VER ISTO DEPOIS PQ CAUSA DAS CONCAT
+
+        int transactionIndex = getIndex(this.leaves, targetHash); // TODO: USING FOR THE SECOND TIME, DO BETTER!
+
+        byte[] newHash = targetHash;
+
+        for (int i = 0; i < nodeList.size(); i++) {
+
+            if(oddOrEven(transactionIndex)) { //if index its odd, so the node is on the right side
+                newHash = aux.concatenateTwoBytes(nodeList.get(i), newHash);
+            } else {
+                newHash = aux.concatenateTwoBytes(newHash, nodeList.get(i));
+            }
+
+            if(transactionIndex > 1)  transactionIndex /= 2; //to know the index of the next hash, in the upper level, so we know if it's on the left/right side
+            else transactionIndex = 0; //always left
+        }
+
+        if(Arrays.equals(newHash, merkleRoot))
+            return true;
+
+        return false;
     }
 
 }

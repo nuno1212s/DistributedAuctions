@@ -30,6 +30,8 @@ public class MerkleTreeTests {
     final byte[] hash9 = {(byte) 0x22};
     final byte[] hash10 = {(byte) 0x16};
     final byte[] hash11 = {(byte) 0x77};
+    final byte[] hash12 = {(byte) 0xed};
+    final byte[] hash13 = {(byte) 0xef};
 
     MerkleTreeNode mt1 = new MerkleTreeNode(hash1);
     MerkleTreeNode mt2 = new MerkleTreeNode(hash2);
@@ -48,29 +50,41 @@ public class MerkleTreeTests {
 
         LinkedHashMap<byte[], Transaction> transactions = new LinkedHashMap<>();
 
-        transactions.put(hash1, null);
+        transactions.put(hash1, null); // TODO: BUG WITH 2 TRANSACTIONS
         transactions.put(hash2, null);
         transactions.put(hash3, null);
-        transactions.put(hash4, null);
+        transactions.put(hash4, null);/*
         transactions.put(hash5, null);
         transactions.put(hash6, null);
         transactions.put(hash7, null);
-
+        transactions.put(hash8, null);
+        transactions.put(hash9, null);
+        transactions.put(hash10, null);
+        transactions.put(hash11, null);
+        transactions.put(hash12, null);
+        transactions.put(hash13, null);*/
 
         // GET MERKLE NODES 2.0 --------------------------
-        MerkleTree mtr = new MerkleTree();
+        //MerkleTree mtr = new MerkleTree();
 
-        List<byte[]> listNodes = mtr.getMerkleHashes(transactions, hash2); // get dependent nodes of hash$
+        //List<byte[]> listNodes1 = mtr.getMerkleHashes(transactions, hash9);
 
         // GET ROOT HASH --------------------------
         MerkleTree mt2 = new MerkleTree();
 
         byte[] rootHash = mt2.getRootHash(transactions);
 
+        // VERIFY TRANSACTION --------------------------
+        MerkleTree mt3 = new MerkleTree();
+
+        boolean b = mt3.verifyTransaction(transactions, hash3, rootHash);
+
         // ------------------------------------------
 
-        System.out.println("hello");
+        System.out.println("Boolean: " + b);
+
     }
+
 
 
 
