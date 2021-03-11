@@ -42,11 +42,6 @@ public class MerkleTreeNode {
 
         byte[] mergedHashes = concatenateTwoBytes(leftNode, rightNode);
 
-        String s = Hex.toHexString(mergedHashes);
-        String s1 = Hex.toHexString(leftNode);
-        String s2 = Hex.toHexString(rightNode);
-        //System.out.println(s1 + " + " + s2 + " = " + s);
-
         //return Standards.calculateHashedFromByte(mergedHashes); // COMENTADO PARA TESTE
 
         return mergedHashes;
@@ -61,10 +56,5 @@ public class MerkleTreeNode {
 
         return c;
     }
-
-
-
-
-
 
 }

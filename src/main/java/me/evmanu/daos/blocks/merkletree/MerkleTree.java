@@ -3,6 +3,7 @@ package me.evmanu.daos.blocks.merkletree;
 import lombok.Getter;
 import me.evmanu.Standards;
 import me.evmanu.daos.transactions.Transaction;
+import me.evmanu.util.Hex;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,6 +30,12 @@ public class MerkleTree {
         RIGHT
     }
 
+    public void addLeaf(MerkleTreeNode node) {
+        this.leaves.add(node);
+    }
+
+    public void addNode(MerkleTreeNode node) { this.nodes.add(node); }
+
     /**
      * False means even
      * True means odd
@@ -42,7 +49,6 @@ public class MerkleTree {
             return true;
     }
 
-    // 1
     public void getTransactionsHashes(LinkedHashMap<byte[], Transaction> transactions) {
 
         for(byte[] key : transactions.keySet() ) {
@@ -59,7 +65,6 @@ public class MerkleTree {
 
         if(oddOrEven(this.leaves.size())) this.leaves.add(null); // ISTO É PARA TESTE, APAGAR DEPOIS
 
-        // TODO: QUAL A MELHOR MANEIRA DE AVISAR OS ERROS?
         if (this.leaves.size() == 0) System.out.println("Zero transactions in the block");
 
         for (int i = 0; i < this.leaves.size(); i += 2) {
@@ -72,15 +77,22 @@ public class MerkleTree {
         if(oddOrEven(this.nodes.size())) this.nodes.add(null);
     }
 
-    //2
     public void makeTree() {
 
         List<MerkleTreeNode> auxNodes = new ArrayList<>();
 
-        for (int i = 0; i < this.nodes.size(); i += 2) {
-            MerkleTreeNode parent = new MerkleTreeNode( this.nodes.get(i), this.nodes.get(i + 1) );
+        if(this.leaves.size() > 2) {
 
-            auxNodes.add(parent);
+            for (int i = 0; i < this.nodes.size(); i += 2) {
+                MerkleTreeNode parent = new MerkleTreeNode(this.nodes.get(i), this.nodes.get(i + 1));
+
+                auxNodes.add(parent);
+            }
+
+        } else { // if the tree has 1 or 2 transactions
+            this.root = this.nodes.get(0);
+
+            return;
         }
 
         this.nodes = auxNodes;
@@ -95,15 +107,6 @@ public class MerkleTree {
         
         this.makeTree();
     }
-
-    public void addLeaf(MerkleTreeNode node) {
-        this.leaves.add(node);
-    }
-
-    public void addNode(MerkleTreeNode node) {
-        this.nodes.add(node);
-    }
-
 
     public byte[] getRootHash(LinkedHashMap<byte[], Transaction> transactions) { // LinkedHashMap<byte[], Transaction> transactions
 
@@ -135,7 +138,7 @@ public class MerkleTree {
         return -1;
     }
 
-    public List<byte[]> climbTreeToGetDependentNodes(MerkleTreeNode curNode, List<byte[]> nodeList) {
+    public List<byte[]> climbTreeToGetDependentNodes(MerkleTreeNode curNode, List<byte[]> nodeList, byte[] targetHash) {
 
         Direction curDirection;
 
@@ -148,10 +151,15 @@ public class MerkleTree {
 
 
         if(curDirection == Direction.LEFT) {
-            if(father.getRightNode() != null)
+
+            if (father.getRightNode() != null) {
                 nodeList.add(father.getRightNode().getHash());
-            else
-                nodeList.add(father.getHash());
+            } else if (father.getHash() != targetHash) {
+                if (father.getLeftNode().getLeftNode() == null)
+                    nodeList.add(father.getHash());
+                //else
+                    //nodeList.add( nodeList.get(nodeList.size()-1) ); // repeated
+            }
 
         } else {
             nodeList.add(father.getLeftNode().getHash());
@@ -159,7 +167,7 @@ public class MerkleTree {
 
         if(father.getParentNode() == null) return nodeList;
 
-        nodeList = climbTreeToGetDependentNodes(father, nodeList);
+        nodeList = climbTreeToGetDependentNodes(father, nodeList, targetHash);
 
         return nodeList;
     }
@@ -167,7 +175,7 @@ public class MerkleTree {
     public List<byte[]> getMerkleHashes(LinkedHashMap<byte[], Transaction> transactions, byte[] targetHash) {
         List<byte[]> nodeList = new ArrayList<>();
 
-        initMerkleTree(transactions);
+        if(this.root == null) initMerkleTree(transactions); // avoiding to double initialize trees (it can generate conflict), because if root its not null, the tree has already been initialized in another method
 
         int transactionIndex = getIndex(this.leaves, targetHash); // TODO: Depois substituir o tipo byte[] por Transaction
         if(transactionIndex == -1) {
@@ -175,7 +183,7 @@ public class MerkleTree {
             return null;
         }
 
-        nodeList = climbTreeToGetDependentNodes(this.leaves.get(transactionIndex), nodeList);
+        nodeList = climbTreeToGetDependentNodes(this.leaves.get(transactionIndex), nodeList, targetHash);
 
         return nodeList;
     }
@@ -191,17 +199,42 @@ public class MerkleTree {
 
         byte[] newHash = targetHash;
 
-        for (int i = 0; i < nodeList.size(); i++) {
+        if(nodeList.size() > 2 || this.root.getLeftNode().getLeftNode() == null) {
 
-            if(oddOrEven(transactionIndex)) { //if index its odd, so the node is on the right side
-                newHash = aux.concatenateTwoBytes(nodeList.get(i), newHash);
-            } else {
-                newHash = aux.concatenateTwoBytes(newHash, nodeList.get(i));
+            for (int i = 0; i < nodeList.size(); i++) {
+
+                byte[] currentHash = nodeList.get(i);
+
+                    if (oddOrEven(transactionIndex)) { //if index its odd, so the node is on the right side
+                        newHash = aux.generateHash(currentHash, newHash);
+                    } else {
+                        newHash = aux.generateHash(newHash, currentHash);
+                    }
+
+                if (transactionIndex > 1)
+                    transactionIndex /= 2; //to know the index of the next hash, in the upper level, so we know if it's on the left/right side
+                else transactionIndex = 0; //always left
+
             }
 
-            if(transactionIndex > 1)  transactionIndex /= 2; //to know the index of the next hash, in the upper level, so we know if it's on the left/right side
-            else transactionIndex = 0; //always left
+        } else if(nodeList.size() == 2) { // condition if on the right branch just exist always a odd number of leaves
+            if (oddOrEven(transactionIndex)) { //if index its odd, so the node is on the right side
+                newHash = aux.generateHash(nodeList.get(0), newHash);
+            } else {
+                newHash = aux.generateHash(newHash, nodeList.get(0));
+            }
+
+            newHash = aux.generateHash(nodeList.get(1), newHash);
+
+        } else { // condition if on the right branch just exist one transaction
+            newHash = aux.generateHash(nodeList.get(0), newHash);
         }
+
+        String s1 = Hex.toHexString(newHash);
+        String s2 = Hex.toHexString(merkleRoot);
+
+        System.out.println("ORIGINAL MERKLE ROOT: " + s2);
+        System.out.println("NEW HASH COMPUTED WITH THE TARGET TRANSACTION: " + s1);
 
         if(Arrays.equals(newHash, merkleRoot))
             return true;

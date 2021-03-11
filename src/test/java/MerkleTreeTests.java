@@ -33,27 +33,16 @@ public class MerkleTreeTests {
     final byte[] hash12 = {(byte) 0xed};
     final byte[] hash13 = {(byte) 0xef};
 
-    MerkleTreeNode mt1 = new MerkleTreeNode(hash1);
-    MerkleTreeNode mt2 = new MerkleTreeNode(hash2);
-    MerkleTreeNode mt3 = new MerkleTreeNode(hash3);
-    MerkleTreeNode mt4 = new MerkleTreeNode(hash4);
-    MerkleTreeNode mt5 = new MerkleTreeNode(hash5);
-    MerkleTreeNode mt6 = new MerkleTreeNode(hash6);
-    MerkleTreeNode mt7 = new MerkleTreeNode(hash7);
-    MerkleTreeNode mt8 = new MerkleTreeNode(hash8);
-    MerkleTreeNode mt9 = new MerkleTreeNode(hash9);
-    MerkleTreeNode mt10 = new MerkleTreeNode(hash10);
-    MerkleTreeNode mt11 = new MerkleTreeNode(hash11);
+    MerkleTree mt = new MerkleTree();
 
-    @Test
-    public void testGetList2() {
+    public LinkedHashMap<byte[], Transaction> getTestTransactions() {
 
         LinkedHashMap<byte[], Transaction> transactions = new LinkedHashMap<>();
 
-        transactions.put(hash1, null); // TODO: BUG WITH 2 TRANSACTIONS
+        transactions.put(hash1, null);
         transactions.put(hash2, null);
         transactions.put(hash3, null);
-        transactions.put(hash4, null);/*
+        transactions.put(hash4, null);
         transactions.put(hash5, null);
         transactions.put(hash6, null);
         transactions.put(hash7, null);
@@ -62,30 +51,109 @@ public class MerkleTreeTests {
         transactions.put(hash10, null);
         transactions.put(hash11, null);
         transactions.put(hash12, null);
-        transactions.put(hash13, null);*/
+        transactions.put(hash13, null); /*  */
 
-        // GET MERKLE NODES 2.0 --------------------------
-        //MerkleTree mtr = new MerkleTree();
-
-        //List<byte[]> listNodes1 = mtr.getMerkleHashes(transactions, hash9);
-
-        // GET ROOT HASH --------------------------
-        MerkleTree mt2 = new MerkleTree();
-
-        byte[] rootHash = mt2.getRootHash(transactions);
-
-        // VERIFY TRANSACTION --------------------------
-        MerkleTree mt3 = new MerkleTree();
-
-        boolean b = mt3.verifyTransaction(transactions, hash3, rootHash);
-
-        // ------------------------------------------
-
-        System.out.println("Boolean: " + b);
-
+        return transactions;
     }
 
+    public LinkedHashMap<byte[], Transaction> getTestTransactions2() {
+
+        LinkedHashMap<byte[], Transaction> transactions = new LinkedHashMap<>();
+
+        transactions.put(hash1, null);
+        transactions.put(hash2, null);
+        transactions.put(hash3, null);
+        transactions.put(hash13, null);
+        transactions.put(hash5, null);
+        transactions.put(hash6, null);
+        transactions.put(hash7, null);
+        transactions.put(hash8, null);
+        transactions.put(hash9, null);
+        transactions.put(hash10, null);/*
+        transactions.put(hash11, null);
+        transactions.put(hash12, null);
+        transactions.put(hash13, null);*/
+
+        return transactions;
+    }
+
+    LinkedHashMap<byte[], Transaction> transactions = getTestTransactions();
 
 
+    @Test
+    public void printTestHashes() {
 
+        System.out.print("Hashes that are going to be leaves: [ ");
+        for(byte[] key : transactions.keySet() ) {
+            Transaction currentTransaction = transactions.get(key);
+
+            String s = Hex.toHexString(key);
+
+            System.out.print(s + " ");
+        }
+        System.out.println("]");
+    }
+
+    @Test
+    public void testGettingRootHash() {
+
+        byte[] rootHash = mt.getRootHash(transactions);
+
+        String s = Hex.toHexString(rootHash);
+
+        System.out.println("Root Hash: " + s);
+
+        System.out.println("-----------------------------------------");
+    }
+
+    @Test
+    public void testGettingDependentTransactionNodeList() {
+
+        List<byte[]> nodeList = mt.getMerkleHashes(transactions, aux); // the second input needs to be a valid transaction
+
+        String s0 = Hex.toHexString(aux);
+
+        System.out.print("Dependent node List of ["+ s0 +"] : [ ");
+        for (int i = 0; i < nodeList.size(); i++) {
+
+            String s = Hex.toHexString(nodeList.get(i));
+
+            System.out.print(s + " ");
+        }
+
+        System.out.println("]");
+    }
+
+    @Test
+    public void verifyTransactionVeracityWithBadTransaction() {
+
+        System.out.println("-----------------------------------------");
+
+        MerkleTree mt2 = new MerkleTree();
+
+        byte[] rootHash = mt2.getRootHash(transactions); // credible root hash
+
+        LinkedHashMap<byte[], Transaction> transactionsToTest = getTestTransactions2(); // transaction on 3º position modified
+
+        // hash13 its the modified transaction, so the result of that root hash will be different from the previous one
+        boolean b = mt.verifyTransaction(transactionsToTest, hash13, rootHash); // the second input means the transaction target
+
+        System.out.println("Boolean result of modified transaction: " + b);
+    }
+
+    @Test
+    public void verifyTransactionVeracityWithGoodTransaction() {
+
+        System.out.println("-----------------------------------------");
+
+        byte[] rootHash = mt.getRootHash(transactions);
+
+        boolean b = mt.verifyTransaction(transactions, aux, rootHash); // the second input means the transaction target
+
+        System.out.println("Boolean result of good transaction: " + b);
+
+        System.out.println("-----------------------------------------");
+    }
+
+    byte[] aux = hash10;
 }
