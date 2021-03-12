@@ -8,16 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 
 public class MerkleTreeTests {
-    /*
-    final byte[] hash1 = {(byte) 0x01, (byte) 0x12, (byte) 0x03, (byte) 0x04};
-    final byte[] hash2 = {(byte) 0xae, (byte) 0x44, (byte) 0x98, (byte) 0xff};
-    final byte[] hash3 = {(byte) 0x5f, (byte) 0xd3, (byte) 0xcc, (byte) 0xe1};
-    final byte[] hash4 = {(byte) 0xcb, (byte) 0xbc, (byte) 0xc4, (byte) 0xe2};
-    final byte[] hash5 = {(byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0x04};
-    final byte[] hash6 = {(byte) 0x20, (byte) 0x55, (byte) 0x03, (byte) 0x11};
-    final byte[] hash7 = {(byte) 0xaa, (byte) 0xbb, (byte) 0xcc, (byte) 0xdd};
-    final byte[] hash8 = {(byte) 0xee, (byte) 0x02, (byte) 0xff, (byte) 0x04};
-    final byte[] hash9 = {(byte) 0x22, (byte) 0x46, (byte) 0xbc, (byte) 0xa3};*/
 
     final byte[] hash1 = {(byte) 0x01};
     final byte[] hash2 = {(byte) 0xae};
@@ -33,59 +23,44 @@ public class MerkleTreeTests {
     final byte[] hash12 = {(byte) 0xed};
     final byte[] hash13 = {(byte) 0xef};
 
+    // ---------------------------------------- VALUES TO CHANGE, FOR TESTS ----------------------------------------
+    int nTransactions = 9; // max its 13 -> nTransactions defines the number of transactions that we want to generate
+
+    byte[] transactionTarget = hash1; // needs to be less or equal of nTransactions
+
+    byte[] badHash = hash4; // by default, the correct hash its hash2 -> badHash serves to change the list of hashes, so it is possible to test a tampered transactions
+    // -------------------------------------------------------------------------------------------------------------
+
     MerkleTree mt = new MerkleTree();
 
-    public LinkedHashMap<byte[], Transaction> getTestTransactions() {
+    byte[][] validTransactions = {hash1, hash2, hash3, hash4, hash5, hash6, hash7, hash8, hash9, hash10, hash11, hash12, hash13};
+
+    // Same list as the previous one, but with the second hash different, to simulate a bad transaction
+    byte[][] badTransactions = {hash1, badHash, hash3, hash4, hash5, hash6, hash7, hash8, hash9, hash10, hash11, hash12, hash13};
+
+    public LinkedHashMap<byte[], Transaction> getTestTransactionsX(int x, byte[][] hashList) {
 
         LinkedHashMap<byte[], Transaction> transactions = new LinkedHashMap<>();
 
-        transactions.put(hash1, null);
-        transactions.put(hash2, null);
-        transactions.put(hash3, null);
-        transactions.put(hash4, null);
-        transactions.put(hash5, null);
-        transactions.put(hash6, null);
-        transactions.put(hash7, null);
-        transactions.put(hash8, null);
-        transactions.put(hash9, null);
-        transactions.put(hash10, null);
-        transactions.put(hash11, null);
-        transactions.put(hash12, null);
-        transactions.put(hash13, null); /*  */
+        assert hashList.length >= x : "Chosen number greater than the number of hashes available";
+
+        for (int i = 0; i < x; i++)
+            transactions.put(hashList[i], null);
 
         return transactions;
     }
 
-    public LinkedHashMap<byte[], Transaction> getTestTransactions2() {
+    LinkedHashMap<byte[], Transaction> validTransactionsList = getTestTransactionsX(nTransactions, validTransactions);
 
-        LinkedHashMap<byte[], Transaction> transactions = new LinkedHashMap<>();
-
-        transactions.put(hash1, null);
-        transactions.put(hash2, null);
-        transactions.put(hash3, null);
-        transactions.put(hash13, null);
-        transactions.put(hash5, null);
-        transactions.put(hash6, null);
-        transactions.put(hash7, null);
-        transactions.put(hash8, null);
-        transactions.put(hash9, null);
-        transactions.put(hash10, null);/*
-        transactions.put(hash11, null);
-        transactions.put(hash12, null);
-        transactions.put(hash13, null);*/
-
-        return transactions;
-    }
-
-    LinkedHashMap<byte[], Transaction> transactions = getTestTransactions();
+    LinkedHashMap<byte[], Transaction> badTransactionsList = getTestTransactionsX(nTransactions, badTransactions);
 
 
     @Test
     public void printTestHashes() {
 
         System.out.print("Hashes that are going to be leaves: [ ");
-        for(byte[] key : transactions.keySet() ) {
-            Transaction currentTransaction = transactions.get(key);
+        for(byte[] key : validTransactionsList.keySet() ) {
+            Transaction currentTransaction = validTransactionsList.get(key);
 
             String s = Hex.toHexString(key);
 
@@ -97,21 +72,23 @@ public class MerkleTreeTests {
     @Test
     public void testGettingRootHash() {
 
-        byte[] rootHash = mt.getRootHash(transactions);
+        byte[] rootHash = mt.getRootHash(validTransactionsList);
 
         String s = Hex.toHexString(rootHash);
 
         System.out.println("Root Hash: " + s);
 
         System.out.println("-----------------------------------------");
+
+        assert rootHash.length != 0 : "Root Hash its empty";
     }
 
     @Test
     public void testGettingDependentTransactionNodeList() {
 
-        List<byte[]> nodeList = mt.getMerkleHashes(transactions, aux); // the second input needs to be a valid transaction
+        List<byte[]> nodeList = mt.getMerkleHashes(validTransactionsList, transactionTarget); // the second input needs to be a valid transaction
 
-        String s0 = Hex.toHexString(aux);
+        String s0 = Hex.toHexString(transactionTarget);
 
         System.out.print("Dependent node List of ["+ s0 +"] : [ ");
         for (int i = 0; i < nodeList.size(); i++) {
@@ -131,12 +108,14 @@ public class MerkleTreeTests {
 
         MerkleTree mt2 = new MerkleTree();
 
-        byte[] rootHash = mt2.getRootHash(transactions); // credible root hash
+        byte[] rootHash = mt2.getRootHash(validTransactionsList); // credible root hash
 
-        LinkedHashMap<byte[], Transaction> transactionsToTest = getTestTransactions2(); // transaction on 3º position modified
+        LinkedHashMap<byte[], Transaction> transactionsToTest = badTransactionsList; // transaction on 2º position modified
 
-        // hash13 its the modified transaction, so the result of that root hash will be different from the previous one
-        boolean b = mt.verifyTransaction(transactionsToTest, hash13, rootHash); // the second input means the transaction target
+        // 2º position its a modified transaction, so the result of that root hash will be different from the previous one
+        boolean b = mt.verifyTransaction(transactionsToTest, hash1, rootHash); // the second input means the transaction target
+
+        assert !b : "The target transaction must not be a valid one!";
 
         System.out.println("Boolean result of modified transaction: " + b);
     }
@@ -146,14 +125,16 @@ public class MerkleTreeTests {
 
         System.out.println("-----------------------------------------");
 
-        byte[] rootHash = mt.getRootHash(transactions);
+        MerkleTree aux = new MerkleTree();
+        byte[] rootHash = aux.getRootHash(validTransactionsList);
 
-        boolean b = mt.verifyTransaction(transactions, aux, rootHash); // the second input means the transaction target
+        boolean b = mt.verifyTransaction(validTransactionsList, transactionTarget, rootHash); // the second input means the transaction target
 
         System.out.println("Boolean result of good transaction: " + b);
+
+        assert b : "The target transaction must be a valid one!";
 
         System.out.println("-----------------------------------------");
     }
 
-    byte[] aux = hash10;
 }
