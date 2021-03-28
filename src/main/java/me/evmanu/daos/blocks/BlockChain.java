@@ -48,6 +48,8 @@ public class BlockChain {
     }
 
     public Block getLatestValidBlock() {
+        if (this.blockCount == 0) return null;
+
         return getBlockByNumber(this.blockCount - 1);
     }
 
@@ -59,7 +61,7 @@ public class BlockChain {
 
     /**
      * Add a block to the block chain
-     *
+     * <p>
      * This assumes that the block has already been verified
      *
      * @param block
@@ -359,6 +361,41 @@ public class BlockChain {
         //When we are verifying external blocks, these arguments will be used to know what block is
         //Being checked
         return verifyTransaction(transaction, -1, null);
+    }
+
+    /**
+     * Check if this block chain can be forked at a certain block
+     * @param blockNumber
+     * @return
+     */
+    public boolean canForkAt(long blockNumber) {
+
+        if (blockNumber < (this.blockCount - 4)) {
+            //We cannot fork if there are already 3 built blocks ahead of the block that we are trying to fork at
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Fork the block chain at a certain block
+     *
+     * @param blockForkNumber
+     * @return
+     */
+    public BlockChain fork(long blockForkNumber) {
+
+        List<Block> previousBlocks = new ArrayList<>((int) (blockForkNumber + 1));
+
+        for (long block = 0; block < blockForkNumber; block++) {
+            //We want to maintain the pointer to the previous blocks,
+            //Not copy them, as
+            previousBlocks.add(getBlockByNumber(block));
+        }
+
+        return new BlockChain(previousBlocks.size(), getVersion(), previousBlocks);
+
     }
 
 }

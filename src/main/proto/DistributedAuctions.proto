@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "me.evmanu";
+option java_outer_classname = "DistLedgerService";
+option objc_class_prefix = "HLW";
+
+service P2PServer {
+
+
+
+}
+
+message Ping {
+  bytes nodeID = 1;
+}
+
+message Store {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+message FindNode {
+  bytes targetID = 1;
+}
+
+message FindValue {
+
+}
