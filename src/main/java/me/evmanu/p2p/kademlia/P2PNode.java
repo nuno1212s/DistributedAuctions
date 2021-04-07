@@ -1,22 +1,28 @@
 package me.evmanu.p2p.kademlia;
 
 import lombok.Getter;
+import me.evmanu.util.Pair;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.stream.Collectors;
 
 @Getter
 public class P2PNode {
 
     private final byte[] nodeID;
 
-    private final ArrayList<LinkedList<NodeTriple>> kBuckets = new ArrayList<>(P2PStandards.I);
+    private final ArrayList<ConcurrentLinkedDeque<NodeTriple>> kBuckets = new ArrayList<>(P2PStandards.I);
 
     private final Map<Integer, LinkedList<NodeTriple>> nodeWaitList = new ConcurrentSkipListMap<>();
 
+    private final Map<byte[], byte[]> storedValues;
+
     public P2PNode(byte[] nodeID) {
         this.nodeID = nodeID;
+        this.storedValues = new HashMap<>();
 
         for (int i = 0; i < P2PStandards.I; i++) {
             kBuckets.add(null);
@@ -86,7 +92,7 @@ public class P2PNode {
         var nodeTriples = this.kBuckets.get(kBucketFor);
 
         if (nodeTriples == null) {
-            nodeTriples = new LinkedList<>();
+            nodeTriples = new ConcurrentLinkedDeque<>();
         }
 
         seen.setLastSeen(System.currentTimeMillis());
@@ -134,22 +140,62 @@ public class P2PNode {
 
     public List<NodeTriple> findNode(byte[] nodeID) {
 
-        final var bucket = P2PStandards.getKBucketFor(nodeID, this.nodeID);
+        LinkedList<Pair<NodeTriple, BigInteger>> KClosestNodes = new LinkedList<>();
 
-        List<NodeTriple> KClosestNodes = new LinkedList<>();
+        for (ConcurrentLinkedDeque<NodeTriple> bucket : this.kBuckets) {
+            for (NodeTriple node : bucket) {
 
-        while (KClosestNodes.size() < P2PStandards.K) {
+                final var distance = P2PStandards.nodeDistance(nodeID, node.getNodeID());
 
-            final var nodeTriples = this.kBuckets.get(bucket);
+                if (KClosestNodes.isEmpty()) {
+                    KClosestNodes.addLast(Pair.of(node, distance));
+                } else {
+                    final var iterator = KClosestNodes.listIterator(KClosestNodes.size());
 
-            if (nodeTriples != null) {
-                KClosestNodes.addAll(nodeTriples);
+                    int currentIndex = KClosestNodes.size();
+
+                    boolean inserted = false;
+
+                    while (iterator.hasPrevious()) {
+
+                        final var previous = iterator.previous();
+
+                        if (previous.getValue().compareTo(distance) >= 0) {
+                            //When previous is larger than the current distance, then we need to add the node
+                            //At this position.
+                            //(If the current position is >= than K, then it's not part of the K first nodes)
+                            if (currentIndex < P2PStandards.K) {
+                                iterator.add(Pair.of(node, distance));
+
+                                inserted = true;
+                            }
+
+                            break;
+                        }
+
+                        currentIndex--;
+                    }
+
+                    if (!inserted && KClosestNodes.peekFirst().getValue().compareTo(distance) <= 0) {
+                        KClosestNodes.addFirst(Pair.of(node, distance));
+
+                        while (KClosestNodes.size() > P2PStandards.K) {
+                            KClosestNodes.removeLast();
+                        }
+                    }
+                }
             }
-
-
         }
 
-        return KClosestNodes;
+        return KClosestNodes.stream().map(Pair::getKey).collect(Collectors.toList());
+    }
+
+    public void storeValue(byte[] ID, byte[] value) {
+        this.storedValues.put(ID, value);
+    }
+
+    public byte[] loadValue(byte[] ID) {
+        return this.storedValues.get(ID);
     }
 
 }

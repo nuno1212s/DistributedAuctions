@@ -1,4 +1,4 @@
-package me.evmanu.p2p;
+package me.evmanu.p2p.grpc;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;

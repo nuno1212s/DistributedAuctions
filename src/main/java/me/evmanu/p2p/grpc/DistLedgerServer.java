@@ -1,7 +1,8 @@
-package me.evmanu.p2p;
+package me.evmanu.p2p.grpc;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import me.evmanu.p2p.kademlia.P2PNode;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -9,7 +10,7 @@ import java.util.logging.Logger;
 
 public class DistLedgerServer {
 
-    private static int PORT = 8080;
+    private static final int PORT = 8080;
 
     private static final Logger logger = Logger.getLogger(DistLedgerServer.class.getName());
 
@@ -17,26 +18,29 @@ public class DistLedgerServer {
 
     private DistLedgerServerImpl serverImpl;
 
+    public DistLedgerServer() {
+
+    }
+
     public void start() throws IOException {
-        serverImpl = new DistLedgerServerImpl(logger);
+        //TODO: Generate a node ID
+        serverImpl = new DistLedgerServerImpl(logger, new P2PNode(new byte[0]));
 
         server = ServerBuilder.forPort(PORT)
                 .addService(serverImpl)
                 .build().start();
 
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override
-            public void run() {
-                // Use stderr here since the logger may have been reset by its JVM shutdown hook.
-                System.err.println("*** shutting down gRPC server since JVM is shutting down");
-                try {
-                    DistLedgerServer.this.stop();
-                } catch (InterruptedException e) {
-                    e.printStackTrace(System.err);
-                }
-                System.err.println("*** server shut down");
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            // Use stderr here since the logger may have been reset by its JVM shutdown hook.
+            System.err.println("*** shutting down gRPC server since JVM is shutting down");
+            try {
+                DistLedgerServer.this.stop();
+            } catch (InterruptedException e) {
+                e.printStackTrace(System.err);
             }
-        });
+
+            System.err.println("*** server shut down");
+        }));
     }
 
     public void blockUntilShutdown() throws InterruptedException {

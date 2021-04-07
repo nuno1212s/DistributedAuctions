@@ -28,7 +28,6 @@ public class P2PStandards {
             T_REPUBLISH = TimeUnit.DAYS.toMillis(1);
 
     public static int getKBucketFor(byte[] node1, byte[] node2) {
-
         final var nodeDistance = nodeDistance(node1, node2);
 
         return BigIntegerMath.log2(nodeDistance, RoundingMode.DOWN);
