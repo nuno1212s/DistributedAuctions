@@ -1,4 +1,4 @@
-package me.evmanu.p2p;
+package me.evmanu.p2p.kademlia;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

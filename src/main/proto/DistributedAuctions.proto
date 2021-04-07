@@ -7,8 +7,13 @@ option objc_class_prefix = "HLW";
 
 service P2PServer {
 
+  rpc ping(Ping) returns (Ping) {}
 
+  rpc store(Store) returns (Store) {}
 
+  rpc findNode(TargetID) returns (stream FoundNode) {}
+
+  rpc findValue(TargetID) returns (Store) {}
 }
 
 message Ping {
@@ -20,10 +25,10 @@ message Store {
   bytes value = 2;
 }
 
-message FindNode {
+message TargetID {
   bytes targetID = 1;
 }
 
-message FindValue {
-
+message FoundNode {
+  bytes nodeID = 2;
 }
