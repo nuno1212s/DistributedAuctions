@@ -73,7 +73,6 @@ public class DistLedgerServer {
 
         DistLedgerServer server = new DistLedgerServer();
 
-
         try {
             final var node = server.start();
 

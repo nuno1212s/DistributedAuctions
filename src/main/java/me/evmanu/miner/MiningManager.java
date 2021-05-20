@@ -27,7 +27,8 @@ public class MiningManager {
         for (int i = 0; i < threadCount; i++) {
             long aux_base = (Long.MAX_VALUE / threadCount) * i;
             long aux_max = (Long.MAX_VALUE / threadCount) * (i + 1);
-            final Future<?> tasks = threadPool.submit(new MiningWorker(this, this.currentBlockChain, aux_base, aux_max));
+            final Future<?> tasks =
+                    threadPool.submit(new MiningWorker(this, this.currentBlockChain, aux_base, aux_max));
         }
     }
 

@@ -2,9 +2,10 @@ package me.evmanu.p2p.kademlia;
 
 import lombok.Getter;
 import me.evmanu.p2p.grpc.DistLedgerClientManager;
-import me.evmanu.p2p.operations.NodeLookup;
+import me.evmanu.p2p.operations.NodeLookupOperation;
 import me.evmanu.util.Pair;
 
+import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -18,16 +19,19 @@ public class P2PNode {
 
     private final ArrayList<ConcurrentLinkedDeque<NodeTriple>> kBuckets = new ArrayList<>(P2PStandards.I);
 
+    private final ArrayList<Long> lastUpdateDone = new ArrayList<>(P2PStandards.I);
+
     private final Map<Integer, LinkedList<NodeTriple>> nodeWaitList = new ConcurrentSkipListMap<>();
 
-    private final Map<byte[], Pair<byte[], Long>> storedValues;
+    private final Map<byte[], StoredKeyMetadata> storedValues;
 
     public P2PNode(byte[] nodeID, DistLedgerClientManager clientManager) {
         this.nodeID = nodeID;
         this.storedValues = new HashMap<>();
 
         for (int i = 0; i < P2PStandards.I; i++) {
-            kBuckets.add(null);
+            kBuckets.add(new ConcurrentLinkedDeque<>());
+            lastUpdateDone.add(System.currentTimeMillis());
         }
 
         this.clientManager = clientManager;
@@ -35,7 +39,7 @@ public class P2PNode {
 
     /**
      * Boostrap the node into an existing kademlia network
-     *
+     * <p>
      * Starts by inserting the boostrap nodes into our k buckets,
      * Then perform a node lookup on our own node ID to populate the our buckets
      */
@@ -56,7 +60,7 @@ public class P2PNode {
             this.kBuckets.set(kBucketFor, kBucket);
         }
 
-        new NodeLookup(this, getNodeID());
+        new NodeLookupOperation(this, getNodeID(), (_nodes) -> {});
     }
 
     public void pingHeadOfKBucket(int kBucket) {
@@ -184,24 +188,97 @@ public class P2PNode {
         return findClosestNodes(P2PStandards.K, nodeID);
     }
 
-    public List<NodeTriple> findClosestNodes(int closest, byte[] nodeID) {
+    /**
+     * Update the sorted set with the nodes from the given bucket
+     * @param maxNodeCount The node limit for the set (Usually {@link P2PStandards#K})
+     * @param kBucket The bucket to check
+     * @param sortedNodes The node set
+     * @param lookupID The ID of the center node
+     */
+    private void updateSortedNodes(int maxNodeCount, int kBucket, TreeSet<NodeTriple> sortedNodes, byte[] lookupID) {
+
+        ConcurrentLinkedDeque<NodeTriple> nodeTriples = this.kBuckets.get(kBucket);
+
+        if (nodeTriples == null) return;
+
+        for (NodeTriple nodeTriple : nodeTriples) {
+
+            if (sortedNodes.size() < maxNodeCount) {
+                sortedNodes.add(nodeTriple);
+
+                continue;
+            }
+
+            NodeTriple lastNode = sortedNodes.last();
+
+            BigInteger lastNodeDist = P2PStandards.nodeDistance(lastNode.getNodeID(), lookupID),
+                    nodeTripleDist = P2PStandards.nodeDistance(nodeTriple.getNodeID(), lookupID);
+
+            //Seen as the tree set is sorted in ascending order of distance, we compare with the last node
+            //If the distance is larger, than it's larger than all the nodes,
+            //If not, then we pop the last node and then add the new node
+
+            if (nodeTripleDist.compareTo(lastNodeDist) < 0) {
+
+                //The node triple dist is smaller than the last node
+                sortedNodes.pollLast();
+
+                sortedNodes.add(nodeTriple);
+
+            }
+        }
+
+    }
+
+    /**
+     * Find the closest nodeCount nodes to the nodeID given.
+     * @param nodeCount The amount of nodes
+     * @param nodeID Node ID
+     * @return
+     */
+    public List<NodeTriple> findClosestNodes(int nodeCount, byte[] nodeID) {
 
         int kBucketFor = P2PStandards.getKBucketFor(nodeID, this.getNodeID());
 
-        Set<NodeTriple> sortedNodes = new TreeSet<>(new KeyDistanceComparator(nodeID));
+        TreeSet<NodeTriple> sortedNodes = new TreeSet<>(new KeyDistanceComparator(nodeID));
 
+        //We start looking at the k bucket that the node ID should be contained in,
+        //As that is the bucket that contains the nodes that are closest to it
+        //Then we start expanding equally to the left and right buckets
+        //Until we have filled the node set.
 
-        //TODO
+        for (int i = 0; i < P2PStandards.I; i++) {
 
-        return Collections.emptyList();
+            if (kBucketFor + i < P2PStandards.I) {
+                updateSortedNodes(nodeCount, kBucketFor + i, sortedNodes, nodeID);
+            }
+
+            if (kBucketFor - i >= 0 && i != 0) {
+                updateSortedNodes(nodeCount, kBucketFor - i, sortedNodes, nodeID);
+            }
+
+            if ((kBucketFor + i > P2PStandards.I && kBucketFor - i < 0) || sortedNodes.size() >= nodeCount) break;
+
+        }
+
+        return new ArrayList<>(sortedNodes);
     }
 
-    public void storeValue(byte[] ID, byte[] value) {
-        this.storedValues.put(ID, Pair.of(value, System.currentTimeMillis()));
+    public void storeValue(byte[] originNodeID, byte[] ID, byte[] value) {
+
+        if (this.storedValues.containsKey(ID)) {
+            StoredKeyMetadata storedKey = this.storedValues.get(ID);
+
+            storedKey.setValue(value);
+        } else {
+            StoredKeyMetadata storedKey = new StoredKeyMetadata(ID, value, originNodeID);
+
+            this.storedValues.put(ID, storedKey);
+        }
     }
 
     public byte[] loadValue(byte[] ID) {
-        return this.storedValues.get(ID).getKey();
+        return this.storedValues.get(ID).getValue();
     }
 
 }

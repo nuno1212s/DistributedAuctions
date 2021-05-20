@@ -4,13 +4,12 @@ import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
-import me.evmanu.FoundNode;
-import me.evmanu.P2PServerGrpc;
-import me.evmanu.Ping;
-import me.evmanu.TargetID;
+import me.evmanu.*;
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
-import me.evmanu.p2p.operations.NodeLookup;
+import me.evmanu.p2p.operations.NodeLookupOperation;
+import me.evmanu.p2p.operations.RepublishOperation;
+import me.evmanu.p2p.operations.StoreOperation;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -129,7 +128,7 @@ public class DistLedgerClientManager {
                 });
     }
 
-    public void performLookupFor(P2PNode node, NodeLookup operation, NodeTriple target, byte[] lookup) {
+    public void performLookupFor(P2PNode node, NodeLookupOperation operation, NodeTriple target, byte[] lookup) {
 
         P2PServerGrpc.P2PServerStub p2PServerStub = this.newStub(target);
 
@@ -151,7 +150,7 @@ public class DistLedgerClientManager {
                 } catch (UnknownHostException e) {
                     e.printStackTrace();
                 }
-
+                //We will pass it on the onCompleted method, to make sure we have already received all of them.
             }
 
             @Override
@@ -162,6 +161,63 @@ public class DistLedgerClientManager {
             @Override
             public void onCompleted() {
                 operation.handleFindNodeReturned(target, nodeTripleList);
+            }
+        });
+
+    }
+
+    public void performRefreshFor(P2PNode node, RepublishOperation operation, NodeTriple triple,
+                                  byte[] key, byte[] value) {
+
+        P2PServerGrpc.P2PServerStub stub = this.newStub(triple);
+
+        Store msg = Store.newBuilder().setRequestingNodeID(ByteString.copyFrom(node.getNodeID()))
+                .setKey(ByteString.copyFrom(key))
+                .setValue(ByteString.copyFrom(value))
+                .build();
+
+        stub.store(msg, new StreamObserver<>() {
+            @Override
+            public void onNext(Store value) {
+
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                operation.handleFailedRepublish(triple);
+            }
+
+            @Override
+            public void onCompleted() {
+                operation.handleRepublishSuccess(triple);
+            }
+        });
+
+    }
+
+    public void performStoreFor(P2PNode node, StoreOperation storeOperation,
+                                NodeTriple triple, byte[] key, byte[] value) {
+
+        P2PServerGrpc.P2PServerStub destinationStub = this.newStub(triple);
+
+        Store msg = Store.newBuilder().setRequestingNodeID(ByteString.copyFrom(node.getNodeID()))
+                .setKey(ByteString.copyFrom(key))
+                .setValue(ByteString.copyFrom(value))
+                .build();
+
+        destinationStub.store(msg, new StreamObserver<>() {
+            @Override
+            public void onNext(Store value) {
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                storeOperation.handleFailedStore(triple);
+            }
+
+            @Override
+            public void onCompleted() {
+                storeOperation.handleSuccessfulStore(triple);
             }
         });
 

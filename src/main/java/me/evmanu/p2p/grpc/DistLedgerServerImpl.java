@@ -13,7 +13,8 @@ import java.util.logging.Logger;
 
 /**
  * This class handles requests for the node
- * There is no need to handle seen nodes as that is handled in the interceptor that uses a protocol layer that is lower
+ * There is no need to handle seen nodes (and updating our k buckets as a result)
+ * as that is handled in the interceptor that uses a protocol layer that is lower
  * Than the one this class operates in.
  *
  * See {@link ConnInterceptor}
@@ -40,7 +41,7 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
 
     @Override
     public void store(Store request, StreamObserver<Store> responseObserver) {
-        node.storeValue(request.getKey().toByteArray(), request.getValue().toByteArray());
+        node.storeValue(request.getRequestingNodeID().toByteArray(), request.getKey().toByteArray(), request.getValue().toByteArray());
 
         responseObserver.onNext(Store.newBuilder().setValue(request.getValue()).build());
 

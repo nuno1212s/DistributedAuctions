@@ -9,16 +9,15 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.function.Consumer;
 
 /**
  * Perform a node lookup operation for a certain target ID
- *
+ * <p>
  * Nodes that are unresponsive are marked as such with the method {@link P2PNode#handleFailedNodePing(NodeTriple)}
  * Nodes that do respond are marked as such with the method {@link P2PNode#handleSeenNode(NodeTriple)}
  */
-public class NodeLookup {
-
-    private static final ScheduledExecutorService scheduledExecutor = Executors.newSingleThreadScheduledExecutor();
+public class NodeLookupOperation implements Operation {
 
     private final byte[] lookupID;
 
@@ -28,34 +27,43 @@ public class NodeLookup {
 
     private final Map<NodeTriple, Long> waiting_response;
 
-    private final ScheduledFuture<?> future;
+    private final Consumer<List<NodeTriple>> callWhenDone;
 
-    public NodeLookup(P2PNode node, byte[] lookupID) {
+    private ScheduledFuture<?> future;
+
+    public NodeLookupOperation(P2PNode node, byte[] lookupID, Consumer<List<NodeTriple>> callWhenDone) {
         this.localNode = node;
         this.lookupID = lookupID;
 
         this.currentOperations = new ConcurrentSkipListMap<>(new KeyDistanceComparator(lookupID));
         this.waiting_response = new ConcurrentSkipListMap<>();
 
-        List<NodeTriple> nodes = node.findClosestNodes(P2PStandards.ALPHA, lookupID);
+        //Get all the nodes in the buckets, since the currentOperations map is sorted by distance, so we always search the closest
+        //This way we can handle if the alpha closest nodes to lookup ID are all offline
+        List<NodeTriple> nodes = node.findClosestNodes(Integer.MAX_VALUE, lookupID);
 
         nodes.forEach(closeNode -> currentOperations.put(closeNode, NodeOperationState.NOT_ASKED));
 
-        this.future = scheduledExecutor.scheduleAtFixedRate(this::execute, 50, 50, TimeUnit.MILLISECONDS);
-
-        execute();
+        this.callWhenDone = callWhenDone;
     }
 
+    @Override
     public void execute() {
+        this.future = scheduledExecutor.scheduleAtFixedRate(this::iterate, 50, 50, TimeUnit.MILLISECONDS);
 
+        iterate();
+    }
+
+    private void iterate() {
         if (this.ask()) {
             //When we are done, cancel the task
             this.future.cancel(true);
-        }
 
+            this.callWhenDone.accept(this.closestKNodesWithState(NodeOperationState.RESPONDED));
+        }
     }
 
-    public boolean ask() {
+    private boolean ask() {
 
         if (this.waiting_response.size() >= P2PStandards.ALPHA) {
             //If we have more than alpha messages in transit, do not ask any more questions
@@ -95,6 +103,8 @@ public class NodeLookup {
 
         //Update our local routing table to reflect that this node is not reachable
         this.localNode.handleFailedNodePing(targetNode);
+
+        this.iterate();
     }
 
     public void handleFindNodeReturned(NodeTriple node, List<NodeTriple> foundNodes) {
@@ -112,7 +122,7 @@ public class NodeLookup {
             this.currentOperations.putIfAbsent(foundNode, NodeOperationState.NOT_ASKED);
         }
 
-        this.ask();
+        this.iterate();
     }
 
     public List<NodeTriple> closestKNodesWithState(NodeOperationState operationState) {
