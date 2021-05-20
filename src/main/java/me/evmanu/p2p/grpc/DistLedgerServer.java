@@ -1,10 +1,16 @@
 package me.evmanu.p2p.grpc;
 
+import com.google.protobuf.ByteString;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.stub.StreamObserver;
+import me.evmanu.Ping;
+import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
+import me.evmanu.util.Hex;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
@@ -16,17 +22,23 @@ public class DistLedgerServer {
 
     private Server server;
 
+    private final DistLedgerClientManager clientManager;
+
     private DistLedgerServerImpl serverImpl;
 
     public DistLedgerServer() {
-
+        this.clientManager = new DistLedgerClientManager();
     }
 
-    public void start() throws IOException {
+    public P2PNode start() throws IOException {
         //TODO: Generate a node ID
-        serverImpl = new DistLedgerServerImpl(logger, new P2PNode(new byte[0]));
+
+        final var p2PNode = new P2PNode(Hex.fromHexString("0123456789abcdef0123"), clientManager);
+
+        serverImpl = new DistLedgerServerImpl(logger, p2PNode);
 
         server = ServerBuilder.forPort(PORT)
+                .intercept(new ConnInterceptor(p2PNode))
                 .addService(serverImpl)
                 .build().start();
 
@@ -41,6 +53,8 @@ public class DistLedgerServer {
 
             System.err.println("*** server shut down");
         }));
+
+        return p2PNode;
     }
 
     public void blockUntilShutdown() throws InterruptedException {
@@ -59,8 +73,41 @@ public class DistLedgerServer {
 
         DistLedgerServer server = new DistLedgerServer();
 
+
         try {
-            server.start();
+            final var node = server.start();
+
+            Thread thread = new Thread(() -> {
+
+                try {
+                    NodeTriple triple = new NodeTriple(InetAddress.getLocalHost(), PORT, node.getNodeID(),
+                            System.currentTimeMillis());
+
+                    final var p2PServerStub = server.clientManager.newStub(triple);
+
+                    p2PServerStub.ping(Ping.newBuilder().setNodeID(ByteString.copyFrom(node.getNodeID())).build(), new StreamObserver<Ping>() {
+                        @Override
+                        public void onNext(Ping value) {
+                            System.out.println("LOL");
+                        }
+
+                        @Override
+                        public void onError(Throwable t) {
+                        }
+
+                        @Override
+                        public void onCompleted() {
+
+                        }
+                    });
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
+
+            System.out.println("Started server.");
+
+            thread.start();
 
             server.blockUntilShutdown();
 

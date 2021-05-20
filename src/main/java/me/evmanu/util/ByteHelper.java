@@ -41,4 +41,18 @@ public class ByteHelper {
         return 0x00;
     }
 
+    public static byte[] xor(byte[] xor1, byte[] xor2) {
+        assert xor1.length == xor2.length;
+
+        byte[] result = new byte[xor1.length];
+
+        for (int i = 0; i < xor1.length; i++) {
+
+            result[i] = (byte) (xor1[i] ^ xor2[i]);
+
+        }
+
+        return result;
+    }
+
 }

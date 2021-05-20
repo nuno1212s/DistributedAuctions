@@ -1,16 +1,18 @@
 package me.evmanu.p2p.kademlia;
 
 import lombok.Getter;
+import me.evmanu.p2p.grpc.DistLedgerClientManager;
+import me.evmanu.p2p.operations.NodeLookup;
 import me.evmanu.util.Pair;
 
-import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.stream.Collectors;
 
 @Getter
 public class P2PNode {
+
+    private final DistLedgerClientManager clientManager;
 
     private final byte[] nodeID;
 
@@ -18,19 +20,53 @@ public class P2PNode {
 
     private final Map<Integer, LinkedList<NodeTriple>> nodeWaitList = new ConcurrentSkipListMap<>();
 
-    private final Map<byte[], byte[]> storedValues;
+    private final Map<byte[], Pair<byte[], Long>> storedValues;
 
-    public P2PNode(byte[] nodeID) {
+    public P2PNode(byte[] nodeID, DistLedgerClientManager clientManager) {
         this.nodeID = nodeID;
         this.storedValues = new HashMap<>();
 
         for (int i = 0; i < P2PStandards.I; i++) {
             kBuckets.add(null);
         }
+
+        this.clientManager = clientManager;
     }
 
-    public void populateKBuckets() {
-        //TODO: Perform a lookup for our own node ID
+    /**
+     * Boostrap the node into an existing kademlia network
+     *
+     * Starts by inserting the boostrap nodes into our k buckets,
+     * Then perform a node lookup on our own node ID to populate the our buckets
+     */
+    public void boostrap() {
+        List<NodeTriple> boostrap_nodes = P2PStandards.getBOOSTRAP_NODES();
+
+        for (NodeTriple boostrap_node : boostrap_nodes) {
+            int kBucketFor = P2PStandards.getKBucketFor(boostrap_node.getNodeID(), this.getNodeID());
+
+            ConcurrentLinkedDeque<NodeTriple> kBucket = this.kBuckets.get(kBucketFor);
+
+            if (kBucket == null) {
+                kBucket = new ConcurrentLinkedDeque<>();
+            }
+
+            kBucket.addFirst(boostrap_node);
+
+            this.kBuckets.set(kBucketFor, kBucket);
+        }
+
+        new NodeLookup(this, getNodeID());
+    }
+
+    public void pingHeadOfKBucket(int kBucket) {
+        ConcurrentLinkedDeque<NodeTriple> nodeTriples = this.kBuckets.get(kBucket);
+
+        NodeTriple nodeTriple = nodeTriples.peekFirst();
+
+        if (nodeTriple != null) {
+            this.clientManager.performPingFor(this, nodeTriple);
+        }
     }
 
     private void appendWaitingNode(int kBucket, NodeTriple nodeTriple) {
@@ -41,7 +77,7 @@ public class P2PNode {
         this.nodeWaitList.put(kBucket, bucketWaitList);
     }
 
-    private Optional<NodeTriple> popLatestSeenNode(int kBucket) {
+    private Optional<NodeTriple> popLatestSeenNodeInWaitingList(int kBucket) {
         final var nodesInWait = this.nodeWaitList.get(kBucket);
 
         if (nodesInWait != null) {
@@ -52,7 +88,7 @@ public class P2PNode {
         return Optional.empty();
     }
 
-    private Optional<NodeTriple> popOldestSeenNode(int kBucket) {
+    private Optional<NodeTriple> popOldestSeenNodeInWaitingList(int kBucket) {
         final var nodesInWait = this.nodeWaitList.get(kBucket);
 
         if (nodesInWait != null) {
@@ -71,18 +107,24 @@ public class P2PNode {
 
         final var iterator = bucketNodes.iterator();
 
+        boolean removed = false;
+
         //Remove the node from the K Bucket
         while (iterator.hasNext()) {
             final var currentNode = iterator.next();
 
             if (Arrays.equals(node.getNodeID(), currentNode.getNodeID())) {
                 iterator.remove();
+
+                removed = true;
                 break;
             }
         }
 
-        //Add the latest seen node to the bucket
-        popLatestSeenNode(kBucketFor).ifPresent(bucketNodes::addLast);
+        if (removed) {
+            //Add the latest seen node to the bucket if the node was present and was removed.
+            popLatestSeenNodeInWaitingList(kBucketFor).ifPresent(bucketNodes::addLast);
+        }
     }
 
     public void handleSeenNode(NodeTriple seen) {
@@ -117,8 +159,8 @@ public class P2PNode {
             //If the node was already present, move it to the tail of the list
             nodeTriples.addLast(seen);
 
-            //Discard of the oldest node in the waiting list
-            popOldestSeenNode(kBucketFor);
+            //Discard of the oldest node in the waiting list, as the ping to the first one was successful
+            popOldestSeenNodeInWaitingList(kBucketFor);
         } else {
             if (nodeTriples.size() >= P2PStandards.K) {
 
@@ -127,7 +169,7 @@ public class P2PNode {
                 //If it does respond, put it at the tail of the list and ignore this one
                 appendWaitingNode(kBucketFor, seen);
 
-                //TODO: Ping the head of the list
+                pingHeadOfKBucket(kBucketFor);
 
             } else {
                 //The node is not present in the K bucket and the bucket is not empty, so add this node to the tail of the list
@@ -138,64 +180,28 @@ public class P2PNode {
         this.kBuckets.set(kBucketFor, nodeTriples);
     }
 
-    public List<NodeTriple> findNode(byte[] nodeID) {
+    public List<NodeTriple> findKClosestNodes(byte[] nodeID) {
+        return findClosestNodes(P2PStandards.K, nodeID);
+    }
 
-        LinkedList<Pair<NodeTriple, BigInteger>> KClosestNodes = new LinkedList<>();
+    public List<NodeTriple> findClosestNodes(int closest, byte[] nodeID) {
 
-        for (ConcurrentLinkedDeque<NodeTriple> bucket : this.kBuckets) {
-            for (NodeTriple node : bucket) {
+        int kBucketFor = P2PStandards.getKBucketFor(nodeID, this.getNodeID());
 
-                final var distance = P2PStandards.nodeDistance(nodeID, node.getNodeID());
+        Set<NodeTriple> sortedNodes = new TreeSet<>(new KeyDistanceComparator(nodeID));
 
-                if (KClosestNodes.isEmpty()) {
-                    KClosestNodes.addLast(Pair.of(node, distance));
-                } else {
-                    final var iterator = KClosestNodes.listIterator(KClosestNodes.size());
 
-                    int currentIndex = KClosestNodes.size();
+        //TODO
 
-                    boolean inserted = false;
-
-                    while (iterator.hasPrevious()) {
-
-                        final var previous = iterator.previous();
-
-                        if (previous.getValue().compareTo(distance) >= 0) {
-                            //When previous is larger than the current distance, then we need to add the node
-                            //At this position.
-                            //(If the current position is >= than K, then it's not part of the K first nodes)
-                            if (currentIndex < P2PStandards.K) {
-                                iterator.add(Pair.of(node, distance));
-
-                                inserted = true;
-                            }
-
-                            break;
-                        }
-
-                        currentIndex--;
-                    }
-
-                    if (!inserted && KClosestNodes.peekFirst().getValue().compareTo(distance) <= 0) {
-                        KClosestNodes.addFirst(Pair.of(node, distance));
-
-                        while (KClosestNodes.size() > P2PStandards.K) {
-                            KClosestNodes.removeLast();
-                        }
-                    }
-                }
-            }
-        }
-
-        return KClosestNodes.stream().map(Pair::getKey).collect(Collectors.toList());
+        return Collections.emptyList();
     }
 
     public void storeValue(byte[] ID, byte[] value) {
-        this.storedValues.put(ID, value);
+        this.storedValues.put(ID, Pair.of(value, System.currentTimeMillis()));
     }
 
     public byte[] loadValue(byte[] ID) {
-        return this.storedValues.get(ID);
+        return this.storedValues.get(ID).getKey();
     }
 
 }

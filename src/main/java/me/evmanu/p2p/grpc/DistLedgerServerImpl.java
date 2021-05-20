@@ -1,6 +1,7 @@
 package me.evmanu.p2p.grpc;
 
 import com.google.protobuf.ByteString;
+import io.grpc.ServerCall;
 import io.grpc.stub.StreamObserver;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -8,9 +9,16 @@ import me.evmanu.*;
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
 
-import java.util.List;
 import java.util.logging.Logger;
 
+/**
+ * This class handles requests for the node
+ * There is no need to handle seen nodes as that is handled in the interceptor that uses a protocol layer that is lower
+ * Than the one this class operates in.
+ *
+ * See {@link ConnInterceptor}
+ *
+ */
 public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
 
     @Getter(value = AccessLevel.PRIVATE)
@@ -23,7 +31,6 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
         this.node = p2PNode;
     }
 
-    //TODO: Every method in this class should invoke a handleSeenNode in our node
     @Override
     public void ping(Ping request, StreamObserver<Ping> responseObserver) {
         responseObserver.onNext(request);
@@ -43,7 +50,7 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
     @Override
     public void findNode(TargetID request, StreamObserver<FoundNode> responseObserver) {
 
-        final var kClosestNodes = this.node.findNode(request.getTargetID().toByteArray());
+        final var kClosestNodes = this.node.findKClosestNodes(request.getTargetID().toByteArray());
 
         for (NodeTriple kClosestNode : kClosestNodes) {
             final var node = FoundNode.newBuilder().setNodeID(ByteString.copyFrom(kClosestNode.getNodeID()))

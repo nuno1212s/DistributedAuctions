@@ -4,13 +4,14 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.util.Arrays;
 
 @Getter
 @AllArgsConstructor
-public class NodeTriple {
+public class NodeTriple implements Comparable<NodeTriple> {
 
-    private final Inet4Address ipAddress;
+    private final InetAddress ipAddress;
 
     private final int udpPort;
 
@@ -19,4 +20,8 @@ public class NodeTriple {
     @Setter
     private long lastSeen;
 
+    @Override
+    public int compareTo(NodeTriple o) {
+        return Arrays.compare(nodeID, o.getNodeID());
+    }
 }

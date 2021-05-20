@@ -21,14 +21,19 @@ message Ping {
 }
 
 message Store {
-  bytes key = 1;
-  bytes value = 2;
+  bytes requestingNodeID = 1;
+  bytes key = 2;
+  bytes value = 3;
 }
 
 message TargetID {
-  bytes targetID = 1;
+  bytes requestingNodeID = 1;
+  bytes targetID = 2;
 }
 
 message FoundNode {
-  bytes nodeID = 2;
+  bytes nodeID = 1;
+  string nodeAddress = 2;
+  int32 port = 3;
+  int64 lastSeen = 4;
 }
