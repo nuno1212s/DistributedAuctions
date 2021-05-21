@@ -14,6 +14,8 @@ service P2PServer {
   rpc findNode(TargetID) returns (stream FoundNode) {}
 
   rpc findValue(TargetID) returns (Store) {}
+
+  rpc requestCRC(CRCRequest) returns (CRCResponse) {}
 }
 
 message Ping {
@@ -36,4 +38,17 @@ message FoundNode {
   string nodeAddress = 2;
   int32 port = 3;
   int64 lastSeen = 4;
+}
+
+message CRCRequest {
+
+  bytes challengingNodeID = 1;
+  int64 challenge = 2;
+
+}
+
+message CRCResponse {
+  bytes challengedNodeID = 1;
+  int64 challenge = 2;
+  int64 response = 3;
 }

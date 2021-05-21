@@ -55,4 +55,26 @@ public class ByteHelper {
         return result;
     }
 
+    public static boolean hasFirstBitsToZero(byte[] toVerify, int zeroes) {
+
+        for (int block = 0; block < (int) Math.ceil(zeroes / (float) Byte.SIZE); block++) {
+            byte byteBlock = toVerify[block];
+
+            //Get the amount of zeroes that are required for this byte, taking into account that the previous
+            //Bytes were already checked
+            int zeroesRequiredInThisBlock = (zeroes - (block * Byte.SIZE)) % Byte.SIZE;
+
+            final var byteWithFirstOnes = ByteHelper.getByteWithFirstOnes(zeroesRequiredInThisBlock);
+
+            //TO check if the first x bits are 0, we do an and with a byte where the first x bits are 1,
+            //And the rest are 0, so when we AND them, we must get 0
+            //Example: 0001 1111 & 1110 0000 = 0
+            if ((byteBlock & byteWithFirstOnes) != 0) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
 }

@@ -7,6 +7,7 @@ import me.evmanu.util.Pair;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -25,9 +26,15 @@ public class P2PNode {
 
     private final Map<byte[], StoredKeyMetadata> storedValues;
 
+    private final Map<NodeTriple, Pair<Long, Long>> storedCRCs;
+
+    private final Map<NodeTriple, Long> requestedCRCs;
+
     public P2PNode(byte[] nodeID, DistLedgerClientManager clientManager) {
         this.nodeID = nodeID;
         this.storedValues = new HashMap<>();
+        this.storedCRCs = new ConcurrentHashMap<>();
+        this.requestedCRCs = new ConcurrentHashMap<>();
 
         for (int i = 0; i < P2PStandards.I; i++) {
             kBuckets.add(new ConcurrentLinkedDeque<>());
@@ -71,6 +78,43 @@ public class P2PNode {
         if (nodeTriple != null) {
             this.clientManager.performPingFor(this, nodeTriple);
         }
+    }
+
+    private boolean hasSolvedCRC(NodeTriple triple) {
+
+        return this.storedCRCs.containsKey(triple);
+
+    }
+
+    public void receivedCRCFromNode(NodeTriple triple, Pair<Long, Long> crc) {
+
+        Long requestChallenge = this.requestedCRCs.remove(triple);
+
+        if (requestChallenge != null) {
+
+            if (!crc.getKey().equals(requestChallenge)) {
+                //The challenge returned does not equal the challenge done
+                requestCRCFromNode(triple);
+            } else {
+                if (CRChallenge.verifyCRChallenge(crc.getKey(), crc.getValue())) {
+                    this.storedCRCs.put(triple, crc);
+
+                    handleSeenNode(triple);
+                } else {
+                    //The CR challenge is not correct
+                    requestCRCFromNode(triple);
+                }
+            }
+        }
+    }
+
+    private void requestCRCFromNode(NodeTriple triple) {
+
+        long challenge = CRChallenge.generateRandomChallenge();
+
+        this.requestedCRCs.put(triple, challenge);
+
+        this.clientManager.requestCRCFromNode(this, triple, challenge);
     }
 
     private void appendWaitingNode(int kBucket, NodeTriple nodeTriple) {
@@ -128,6 +172,9 @@ public class P2PNode {
         if (removed) {
             //Add the latest seen node to the bucket if the node was present and was removed.
             popLatestSeenNodeInWaitingList(kBucketFor).ifPresent(bucketNodes::addLast);
+        } else {
+            //Remove the CRC request if the node is offline
+            this.requestedCRCs.remove(node);
         }
     }
 
@@ -166,6 +213,17 @@ public class P2PNode {
             //Discard of the oldest node in the waiting list, as the ping to the first one was successful
             popOldestSeenNodeInWaitingList(kBucketFor);
         } else {
+
+            //The node is not already present, so we request it to perform a CRC
+            //To accept this, send a challenge that requires computational work to the node to prevent sybil attacks
+            //Maybe send a Large prime number N for it to factorize? Or maybe send him a random number and he has
+            //To find a Proof of work with X zeroes to be able to join the network
+            if (!hasSolvedCRC(seen)) {
+                requestCRCFromNode(seen);
+
+                return;
+            }
+
             if (nodeTriples.size() >= P2PStandards.K) {
 
                 //Ping the head of the list, wait for it's response.

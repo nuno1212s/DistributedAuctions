@@ -6,6 +6,7 @@ import io.grpc.stub.StreamObserver;
 import lombok.AccessLevel;
 import lombok.Getter;
 import me.evmanu.*;
+import me.evmanu.p2p.kademlia.CRChallenge;
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
 
@@ -16,9 +17,8 @@ import java.util.logging.Logger;
  * There is no need to handle seen nodes (and updating our k buckets as a result)
  * as that is handled in the interceptor that uses a protocol layer that is lower
  * Than the one this class operates in.
- *
+ * <p>
  * See {@link ConnInterceptor}
- *
  */
 public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
 
@@ -68,6 +68,21 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
         final var result = this.node.loadValue(request.getTargetID().toByteArray());
 
         responseObserver.onNext(Store.newBuilder().setValue(ByteString.copyFrom(result)).build());
+
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void requestCRC(CRCRequest request, StreamObserver<CRCResponse> responseObserver) {
+
+        long challenge = request.getChallenge();
+
+        long result = CRChallenge.solveCRChallenge(challenge);
+
+        responseObserver.onNext(CRCResponse.newBuilder().setChallenge(challenge)
+                .setResponse(result)
+                .setChallengedNodeID(ByteString.copyFrom(node.getNodeID()))
+                .build());
 
         responseObserver.onCompleted();
     }

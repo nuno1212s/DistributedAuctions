@@ -45,21 +45,10 @@ public class MiningWorker implements Runnable {
             individualInstance.setWorkProof(i);
             byte[] hash = Hashable.calculateHashOf(individualInstance);
 
-            for (int block = 0; block < (int) Math.ceil(ZEROS_REQUIRED / (float) Byte.SIZE); block++) {
-                byte byteBlock = hash[block];
-
-                final var byteWithFirstOnes = ByteHelper.getByteWithFirstOnes(ZEROS_REQUIRED);
-
-                //TO check if the first x bits are 0, we do an and with a byte where the first x bits are 1,
-                //And the rest are 0, so when we AND them, we must get 0
-                //Example: 0001 1111 & 1110 0000 = 0
-                if ((byteBlock & byteWithFirstOnes) != 0) {
-                    continue forx;
-                }
+            if (ByteHelper.hasFirstBitsToZero(hash, ZEROS_REQUIRED)) {
+                miningManager.minedBlock(individualInstance);
+                break;
             }
-
-            miningManager.minedBlock(individualInstance);
-            break;
         }
     }
 }

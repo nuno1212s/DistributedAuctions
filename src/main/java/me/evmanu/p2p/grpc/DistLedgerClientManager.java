@@ -10,6 +10,7 @@ import me.evmanu.p2p.kademlia.P2PNode;
 import me.evmanu.p2p.operations.NodeLookupOperation;
 import me.evmanu.p2p.operations.RepublishOperation;
 import me.evmanu.p2p.operations.StoreOperation;
+import me.evmanu.util.Pair;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -219,6 +220,31 @@ public class DistLedgerClientManager {
             public void onCompleted() {
                 storeOperation.handleSuccessfulStore(triple);
             }
+        });
+
+    }
+
+    public void requestCRCFromNode(P2PNode sender, NodeTriple destination, long challenge) {
+
+        P2PServerGrpc.P2PServerStub destinationStub = this.newStub(destination);
+
+        CRCRequest crrequest = CRCRequest.newBuilder()
+                .setChallenge(challenge).setChallengingNodeID(ByteString.copyFrom(sender.getNodeID()))
+                .build();
+
+        destinationStub.requestCRC(crrequest, new StreamObserver<>() {
+            @Override
+            public void onNext(CRCResponse value) {
+                sender.receivedCRCFromNode(destination, Pair.of(value.getChallenge(), value.getResponse()));
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                sender.handleFailedNodePing(destination);
+            }
+
+            @Override
+            public void onCompleted() { }
         });
 
     }
