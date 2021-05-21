@@ -10,6 +10,9 @@ public class StoredKeyMetadata {
 
     private final byte[] key;
 
+    /**
+     * The node that first stored this information
+     */
     private final byte[] ownerNodeID;
 
     private byte[] value;
@@ -26,7 +29,6 @@ public class StoredKeyMetadata {
 
         this.lastRepublished = System.currentTimeMillis();
         this.lastUpdated = System.currentTimeMillis();
-
     }
 
     public void setValue(byte[] value) {

@@ -39,7 +39,7 @@ public class CRChallenge {
 
         byte[] hashResult = digest.digest();
 
-        return ByteHelper.hasFirstBitsToZero(hashResult, CRC_DIFFICULTY);
+        return ByteHelper.hasFirstBitsSetToZero(hashResult, CRC_DIFFICULTY);
     }
 
     public static long solveCRChallenge(long challenge) {
@@ -56,7 +56,7 @@ public class CRChallenge {
 
             byte[] hashResult = digest.digest();
 
-            if (ByteHelper.hasFirstBitsToZero(hashResult, CRC_DIFFICULTY)) {
+            if (ByteHelper.hasFirstBitsSetToZero(hashResult, CRC_DIFFICULTY)) {
                 return response;
             }
 

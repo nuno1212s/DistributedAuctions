@@ -390,7 +390,8 @@ public class BlockChain {
 
         for (long block = 0; block < blockForkNumber; block++) {
             //We want to maintain the pointer to the previous blocks,
-            //Not copy them, as
+            //Not copy them, as they are exactly the same, only the following blocks might
+            //Be different
             previousBlocks.add(getBlockByNumber(block));
         }
 

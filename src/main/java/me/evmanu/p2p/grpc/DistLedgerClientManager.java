@@ -7,9 +7,8 @@ import io.grpc.stub.StreamObserver;
 import me.evmanu.*;
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
-import me.evmanu.p2p.operations.NodeLookupOperation;
-import me.evmanu.p2p.operations.RepublishOperation;
-import me.evmanu.p2p.operations.StoreOperation;
+import me.evmanu.p2p.kademlia.StoredKeyMetadata;
+import me.evmanu.p2p.operations.*;
 import me.evmanu.util.Pair;
 
 import java.io.IOException;
@@ -19,6 +18,8 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class DistLedgerClientManager {
 
@@ -33,7 +34,7 @@ public class DistLedgerClientManager {
     public DistLedgerClientManager() {
         instance = this;
 
-        this.cachedChannels = new HashMap<>();
+        this.cachedChannels = new ConcurrentHashMap<>();
     }
 
     private ManagedChannel getCachedChannel(byte[] nodeID) {
@@ -77,7 +78,7 @@ public class DistLedgerClientManager {
     private ManagedChannel setupConnection(NodeTriple nodeTriple) throws IOException {
         final var cachedChannel = getCachedChannel(nodeTriple.getNodeID());
 
-        if (cachedChannel == null) {
+        if (cachedChannel == null || cachedChannel.isShutdown() || cachedChannel.isTerminated()) {
             final var createdConnection = createConnection(nodeTriple);
 
             cacheConnection(nodeTriple, createdConnection);
@@ -88,18 +89,10 @@ public class DistLedgerClientManager {
         throw new IOException("Failed to connect to the IP: " + nodeTriple.getIpAddress().getHostAddress());
     }
 
-    public P2PServerGrpc.P2PServerStub newStub(NodeTriple triple) {
-        try {
-            final var connection = setupConnection(triple);
+    public P2PServerGrpc.P2PServerStub newStub(NodeTriple triple) throws IOException {
+        final var connection = setupConnection(triple);
 
-            return P2PServerGrpc.newStub(connection);
-        } catch (IOException e) {
-            e.printStackTrace();
-
-            System.out.println("Failed to connect.");
-        }
-
-        return null;
+        return P2PServerGrpc.newStub(connection);
     }
 
     public P2PServerGrpc.P2PServerFutureStub newFutureStub(NodeTriple triple) throws IOException {
@@ -109,116 +102,103 @@ public class DistLedgerClientManager {
     }
 
     public void performPingFor(P2PNode node, NodeTriple triple) {
-        P2PServerGrpc.P2PServerStub tripleStub = this.newStub(triple);
+        try {
+            P2PServerGrpc.P2PServerStub tripleStub = this.newStub(triple);
 
-        tripleStub.ping(Ping.newBuilder().setNodeID(ByteString.copyFrom(node.getNodeID())).build(),
-                new StreamObserver<>() {
-                    @Override
-                    public void onNext(Ping value) {
-                        node.handleSeenNode(triple);
-                    }
+            tripleStub.ping(Ping.newBuilder().setNodeID(ByteString.copyFrom(node.getNodeID())).build(),
+                    new StreamObserver<>() {
+                        @Override
+                        public void onNext(Ping value) {
+                            node.handleSeenNode(triple);
+                        }
 
-                    @Override
-                    public void onError(Throwable t) {
-                        node.handleFailedNodePing(triple);
-                    }
+                        @Override
+                        public void onError(Throwable t) {
+                            node.handleFailedNodePing(triple);
+                        }
 
-                    @Override
-                    public void onCompleted() {
-                    }
-                });
+                        @Override
+                        public void onCompleted() {
+                        }
+                    });
+        } catch (IOException e) {
+            node.handleFailedNodePing(triple);
+        }
+
     }
 
     public void performLookupFor(P2PNode node, NodeLookupOperation operation, NodeTriple target, byte[] lookup) {
 
-        P2PServerGrpc.P2PServerStub p2PServerStub = this.newStub(target);
+        try {
+            P2PServerGrpc.P2PServerStub p2PServerStub = this.newStub(target);
 
-        List<NodeTriple> nodeTripleList = new LinkedList<>();
+            List<NodeTriple> nodeTripleList = new LinkedList<>();
 
-        p2PServerStub.findNode(TargetID.newBuilder().setTargetID(ByteString.copyFrom(lookup)).build(), new StreamObserver<>() {
-            @Override
-            public void onNext(FoundNode value) {
-                byte[] nodeID = value.getNodeID().toByteArray();
+            p2PServerStub.findNode(TargetID.newBuilder().setTargetID(ByteString.copyFrom(lookup)).build(), new StreamObserver<>() {
+                @Override
+                public void onNext(FoundNode value) {
+                    byte[] nodeID = value.getNodeID().toByteArray();
 
-                String nodeAddress = value.getNodeAddress();
+                    String nodeAddress = value.getNodeAddress();
 
-                int port = value.getPort();
+                    int port = value.getPort();
 
-                try {
-                    InetAddress ipAddress = InetAddress.getByName(nodeAddress);
+                    try {
+                        InetAddress ipAddress = InetAddress.getByName(nodeAddress);
 
-                    nodeTripleList.add(new NodeTriple(ipAddress, port, nodeID, value.getLastSeen()));
-                } catch (UnknownHostException e) {
-                    e.printStackTrace();
+                        nodeTripleList.add(new NodeTriple(ipAddress, port, nodeID, value.getLastSeen()));
+                    } catch (UnknownHostException e) {
+                        e.printStackTrace();
+                    }
+                    //We will pass it on the onCompleted method, to make sure we have already received all of them.
                 }
-                //We will pass it on the onCompleted method, to make sure we have already received all of them.
-            }
 
-            @Override
-            public void onError(Throwable t) {
-                operation.handleFindNodeFailed(target);
-            }
+                @Override
+                public void onError(Throwable t) {
+                    operation.handleFindNodeFailed(target);
+                }
 
-            @Override
-            public void onCompleted() {
-                operation.handleFindNodeReturned(target, nodeTripleList);
-            }
-        });
-
+                @Override
+                public void onCompleted() {
+                    operation.handleFindNodeReturned(target, nodeTripleList);
+                }
+            });
+        } catch (IOException e) {
+            operation.handleFindNodeFailed(target);
+        }
     }
 
-    public void performRefreshFor(P2PNode node, RepublishOperation operation, NodeTriple triple,
-                                  byte[] key, byte[] value) {
+    public void performStoreFor(P2PNode node, StoreOperationBase storeOperation,
+                                NodeTriple destination, StoredKeyMetadata metadata) {
 
-        P2PServerGrpc.P2PServerStub stub = this.newStub(triple);
+        P2PServerGrpc.P2PServerStub destinationStub = null;
 
-        Store msg = Store.newBuilder().setRequestingNodeID(ByteString.copyFrom(node.getNodeID()))
-                .setKey(ByteString.copyFrom(key))
-                .setValue(ByteString.copyFrom(value))
-                .build();
+        try {
+            destinationStub = this.newStub(destination);
+        } catch (IOException e) {
+            storeOperation.handleFailedStore(destination);
 
-        stub.store(msg, new StreamObserver<>() {
-            @Override
-            public void onNext(Store value) {
-
-            }
-
-            @Override
-            public void onError(Throwable t) {
-                operation.handleFailedRepublish(triple);
-            }
-
-            @Override
-            public void onCompleted() {
-                operation.handleRepublishSuccess(triple);
-            }
-        });
-
-    }
-
-    public void performStoreFor(P2PNode node, StoreOperation storeOperation,
-                                NodeTriple triple, byte[] key, byte[] value) {
-
-        P2PServerGrpc.P2PServerStub destinationStub = this.newStub(triple);
+            return;
+        }
 
         Store msg = Store.newBuilder().setRequestingNodeID(ByteString.copyFrom(node.getNodeID()))
-                .setKey(ByteString.copyFrom(key))
-                .setValue(ByteString.copyFrom(value))
+                .setKey(ByteString.copyFrom(metadata.getKey()))
+                .setValue(ByteString.copyFrom(metadata.getValue()))
+                .setOwningNodeID(ByteString.copyFrom(metadata.getOwnerNodeID()))
                 .build();
 
         destinationStub.store(msg, new StreamObserver<>() {
             @Override
-            public void onNext(Store value) {
-            }
+            public void onNext(Store value) { }
 
             @Override
             public void onError(Throwable t) {
-                storeOperation.handleFailedStore(triple);
+                storeOperation.handleFailedStore(destination);
             }
 
             @Override
             public void onCompleted() {
-                storeOperation.handleSuccessfulStore(triple);
+                storeOperation.handleSuccessfulStore(destination);
             }
         });
 
@@ -226,7 +206,14 @@ public class DistLedgerClientManager {
 
     public void requestCRCFromNode(P2PNode sender, NodeTriple destination, long challenge) {
 
-        P2PServerGrpc.P2PServerStub destinationStub = this.newStub(destination);
+        P2PServerGrpc.P2PServerStub destinationStub = null;
+        try {
+            destinationStub = this.newStub(destination);
+        } catch (IOException e) {
+            sender.handleFailedNodePing(destination);
+
+            return;
+        }
 
         CRCRequest crrequest = CRCRequest.newBuilder()
                 .setChallenge(challenge).setChallengingNodeID(ByteString.copyFrom(sender.getNodeID()))
@@ -244,8 +231,62 @@ public class DistLedgerClientManager {
             }
 
             @Override
-            public void onCompleted() { }
+            public void onCompleted() {
+            }
         });
+
+    }
+
+    public void findValueFromNode(P2PNode node, ContentLookupOperation lookupOperation, NodeTriple destination, byte[] target) {
+
+        try {
+            P2PServerGrpc.P2PServerStub destinationStub = newStub(destination);
+
+            TargetID targetID = TargetID.newBuilder().setTargetID(ByteString.copyFrom(target))
+                    .setRequestingNodeID(ByteString.copyFrom(node.getNodeID())).build();
+
+            AtomicReference<byte[]> foundValue = new AtomicReference<>(null);
+
+            List<NodeTriple> foundNodes = new LinkedList<>();
+
+            destinationStub.findValue(targetID, new StreamObserver<>() {
+                @Override
+                public void onNext(FoundValue value) {
+                    if (value.getValueKind() == StoreKind.VALUE_FOUND) {
+                        foundValue.set(value.getValue().toByteArray());
+                    } else {
+                        byte[] nodeID = value.getNodeID().toByteArray();
+
+                        int port = value.getPort();
+
+                        try {
+                            InetAddress inetAddress = InetAddress.getByName(value.getNodeAdress());
+
+                            foundNodes.add(new NodeTriple(inetAddress, port, nodeID, System.currentTimeMillis()));
+
+                        } catch (UnknownHostException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+
+                @Override
+                public void onError(Throwable t) {
+                    lookupOperation.nodeFailedLookup(destination);
+                }
+
+                @Override
+                public void onCompleted() {
+                    if (foundValue.get() == null) {
+                        lookupOperation.nodeReturnedMoreNodes(destination, foundNodes);
+                    } else {
+                        lookupOperation.handleFoundValue(destination, foundValue.get());
+                    }
+                }
+            });
+        } catch (IOException e) {
+            lookupOperation.nodeFailedLookup(destination);
+        }
 
     }
 

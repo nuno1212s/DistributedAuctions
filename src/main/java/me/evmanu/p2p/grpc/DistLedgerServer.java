@@ -76,37 +76,7 @@ public class DistLedgerServer {
         try {
             final var node = server.start();
 
-            Thread thread = new Thread(() -> {
-
-                try {
-                    NodeTriple triple = new NodeTriple(InetAddress.getLocalHost(), PORT, node.getNodeID(),
-                            System.currentTimeMillis());
-
-                    final var p2PServerStub = server.clientManager.newStub(triple);
-
-                    p2PServerStub.ping(Ping.newBuilder().setNodeID(ByteString.copyFrom(node.getNodeID())).build(), new StreamObserver<Ping>() {
-                        @Override
-                        public void onNext(Ping value) {
-                            System.out.println("LOL");
-                        }
-
-                        @Override
-                        public void onError(Throwable t) {
-                        }
-
-                        @Override
-                        public void onCompleted() {
-
-                        }
-                    });
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            });
-
             System.out.println("Started server.");
-
-            thread.start();
 
             server.blockUntilShutdown();
 

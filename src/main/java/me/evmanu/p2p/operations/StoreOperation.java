@@ -2,25 +2,25 @@ package me.evmanu.p2p.operations;
 
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
+import me.evmanu.p2p.kademlia.StoredKeyMetadata;
 
-public class StoreOperation implements Operation {
+public class StoreOperation implements StoreOperationBase {
 
     private final P2PNode center;
-    private final byte[] key, value;
+    private final StoredKeyMetadata metadata;
 
-    public StoreOperation(P2PNode center, byte[] key, byte[] value) {
+    public StoreOperation(P2PNode center, StoredKeyMetadata metadata) {
         this.center = center;
-        this.key = key;
-        this.value = value;
+        this.metadata = metadata;
     }
 
     @Override
     public void execute() {
 
-        new NodeLookupOperation(center, key, (nodes) -> {
+        new NodeLookupOperation(center, this.metadata.getKey(), (nodes) -> {
 
             for (NodeTriple destination : nodes) {
-                center.getClientManager().performStoreFor(center, this, destination, key, value);
+                center.getClientManager().performStoreFor(center, this, destination, this.metadata);
             }
 
         });

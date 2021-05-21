@@ -25,7 +25,7 @@ public class P2PStandards {
     /**
      * T_EXPIRE -> The time after which a key/value pair expires; this is a time-to-live (TTL) from the original
      * publication date
-     * T_REFRESH -> Time to refresh an unaccessed bucket K bucket
+     * T_REFRESH -> Time to refresh a K Bucket
      * T_REPLICATE -> Interval between replication events, where a node is required to publish it's entire database
      * T_REPUBLISH -> The time after which the original publisher must republish a key value pair
      */
@@ -54,6 +54,8 @@ public class P2PStandards {
 
     public static int getKBucketFor(byte[] node1, byte[] node2) {
         final var nodeDistance = nodeDistance(node1, node2);
+
+        if (nodeDistance.equals(BigInteger.ZERO)) return 0;
 
         return BigIntegerMath.log2(nodeDistance, RoundingMode.DOWN);
     }

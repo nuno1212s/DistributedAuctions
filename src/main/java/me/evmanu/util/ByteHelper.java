@@ -55,7 +55,7 @@ public class ByteHelper {
         return result;
     }
 
-    public static boolean hasFirstBitsToZero(byte[] toVerify, int zeroes) {
+    public static boolean hasFirstBitsSetToZero(byte[] toVerify, int zeroes) {
 
         for (int block = 0; block < (int) Math.ceil(zeroes / (float) Byte.SIZE); block++) {
             byte byteBlock = toVerify[block];

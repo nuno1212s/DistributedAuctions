@@ -2,46 +2,60 @@ package me.evmanu.p2p.kademlia;
 
 import lombok.Getter;
 import me.evmanu.p2p.grpc.DistLedgerClientManager;
+import me.evmanu.p2p.operations.ContentRepublishOperation;
 import me.evmanu.p2p.operations.NodeLookupOperation;
+import me.evmanu.p2p.operations.OriginalContentRepublishOperation;
+import me.evmanu.p2p.operations.RefreshBucketOperation;
 import me.evmanu.util.Pair;
 
 import java.math.BigInteger;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.*;
 
 @Getter
 public class P2PNode {
+
+    private static final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     private final DistLedgerClientManager clientManager;
 
     private final byte[] nodeID;
 
-    private final ArrayList<ConcurrentLinkedDeque<NodeTriple>> kBuckets = new ArrayList<>(P2PStandards.I);
+    private final ArrayList<ConcurrentLinkedDeque<NodeTriple>> kBuckets;
 
-    private final ArrayList<Long> lastUpdateDone = new ArrayList<>(P2PStandards.I);
+    private final ArrayList<Long> lastKBucketUpdate;
 
-    private final Map<Integer, LinkedList<NodeTriple>> nodeWaitList = new ConcurrentSkipListMap<>();
+    private final Map<Integer, LinkedList<NodeTriple>> nodeWaitList;
 
-    private final Map<byte[], StoredKeyMetadata> storedValues;
+    private final Map<byte[], StoredKeyMetadata> storedValues, publishedValues;
 
     private final Map<NodeTriple, Pair<Long, Long>> storedCRCs;
 
     private final Map<NodeTriple, Long> requestedCRCs;
 
+    private long lastRepublish, lastOriginalRepublish;
+
     public P2PNode(byte[] nodeID, DistLedgerClientManager clientManager) {
         this.nodeID = nodeID;
-        this.storedValues = new HashMap<>();
+        this.kBuckets = new ArrayList<>(P2PStandards.I);
+        this.lastKBucketUpdate = new ArrayList<>(P2PStandards.I);
+        this.nodeWaitList = new ConcurrentSkipListMap<>();
+        this.storedValues = new ConcurrentHashMap<>();
+        this.publishedValues = new ConcurrentHashMap<>();
         this.storedCRCs = new ConcurrentHashMap<>();
         this.requestedCRCs = new ConcurrentHashMap<>();
 
+        this.lastRepublish = System.currentTimeMillis();
+        this.lastOriginalRepublish = System.currentTimeMillis();
+
         for (int i = 0; i < P2PStandards.I; i++) {
             kBuckets.add(new ConcurrentLinkedDeque<>());
-            lastUpdateDone.add(System.currentTimeMillis());
+            lastKBucketUpdate.add(System.currentTimeMillis());
         }
 
         this.clientManager = clientManager;
+
+        executor.scheduleAtFixedRate(this::iterate, 1, 1, TimeUnit.HOURS);
     }
 
     /**
@@ -67,7 +81,9 @@ public class P2PNode {
             this.kBuckets.set(kBucketFor, kBucket);
         }
 
-        new NodeLookupOperation(this, getNodeID(), (_nodes) -> {});
+        new NodeLookupOperation(this, getNodeID(), (_nodes) -> {
+
+        });
     }
 
     public void pingHeadOfKBucket(int kBucket) {
@@ -81,9 +97,7 @@ public class P2PNode {
     }
 
     private boolean hasSolvedCRC(NodeTriple triple) {
-
         return this.storedCRCs.containsKey(triple);
-
     }
 
     public void receivedCRCFromNode(NodeTriple triple, Pair<Long, Long> crc) {
@@ -99,6 +113,9 @@ public class P2PNode {
                 if (CRChallenge.verifyCRChallenge(crc.getKey(), crc.getValue())) {
                     this.storedCRCs.put(triple, crc);
 
+                    //The challenge is correct so we can finally add this node to our routing table
+                    //The response gets stored so if we see this same node later, we already know that it is a
+                    //Valid node.
                     handleSeenNode(triple);
                 } else {
                     //The CR challenge is not correct
@@ -109,7 +126,6 @@ public class P2PNode {
     }
 
     private void requestCRCFromNode(NodeTriple triple) {
-
         long challenge = CRChallenge.generateRandomChallenge();
 
         this.requestedCRCs.put(triple, challenge);
@@ -155,23 +171,27 @@ public class P2PNode {
 
         final var iterator = bucketNodes.iterator();
 
-        boolean removed = false;
+        boolean isPresent = false;
 
         //Remove the node from the K Bucket
         while (iterator.hasNext()) {
             final var currentNode = iterator.next();
 
             if (Arrays.equals(node.getNodeID(), currentNode.getNodeID())) {
-                iterator.remove();
-
-                removed = true;
+                isPresent = true;
                 break;
             }
         }
 
-        if (removed) {
+        if (isPresent) {
             //Add the latest seen node to the bucket if the node was present and was removed.
             popLatestSeenNodeInWaitingList(kBucketFor).ifPresent(bucketNodes::addLast);
+
+            bucketNodes.removeFirstOccurrence(node);
+
+            //Remove the work proof of this node as it is no longer online so it
+            //Might have been poisoned in the mean time
+            this.storedCRCs.remove(node);
         } else {
             //Remove the CRC request if the node is offline
             this.requestedCRCs.remove(node);
@@ -201,7 +221,6 @@ public class P2PNode {
 
                 alreadyPresent = true;
 
-                iterator.remove();
                 break;
             }
         }
@@ -209,6 +228,10 @@ public class P2PNode {
         if (alreadyPresent) {
             //If the node was already present, move it to the tail of the list
             nodeTriples.addLast(seen);
+
+            //Only remove the node after adding the previous, so we don't get any sort of concurrency
+            //Issues
+            nodeTriples.removeFirstOccurrence(seen);
 
             //Discard of the oldest node in the waiting list, as the ping to the first one was successful
             popOldestSeenNodeInWaitingList(kBucketFor);
@@ -246,12 +269,17 @@ public class P2PNode {
         return findClosestNodes(P2PStandards.K, nodeID);
     }
 
+    public void kBucketUpdated(int kBucket) {
+        this.lastKBucketUpdate.set(kBucket, System.currentTimeMillis());
+    }
+
     /**
      * Update the sorted set with the nodes from the given bucket
+     *
      * @param maxNodeCount The node limit for the set (Usually {@link P2PStandards#K})
-     * @param kBucket The bucket to check
-     * @param sortedNodes The node set
-     * @param lookupID The ID of the center node
+     * @param kBucket      The bucket to check
+     * @param sortedNodes  The node set
+     * @param lookupID     The ID of the center node
      */
     private void updateSortedNodes(int maxNodeCount, int kBucket, TreeSet<NodeTriple> sortedNodes, byte[] lookupID) {
 
@@ -290,8 +318,9 @@ public class P2PNode {
 
     /**
      * Find the closest nodeCount nodes to the nodeID given.
+     *
      * @param nodeCount The amount of nodes
-     * @param nodeID Node ID
+     * @param nodeID    Node ID
      * @return
      */
     public List<NodeTriple> findClosestNodes(int nodeCount, byte[] nodeID) {
@@ -324,6 +353,10 @@ public class P2PNode {
 
     public void storeValue(byte[] originNodeID, byte[] ID, byte[] value) {
 
+        if (Arrays.equals(originNodeID, this.getNodeID())) {
+            this.publishedValues.put(ID, new StoredKeyMetadata(ID, value, getNodeID()));
+        }
+
         if (this.storedValues.containsKey(ID)) {
             StoredKeyMetadata storedKey = this.storedValues.get(ID);
 
@@ -337,6 +370,55 @@ public class P2PNode {
 
     public byte[] loadValue(byte[] ID) {
         return this.storedValues.get(ID).getValue();
+    }
+
+    public void deleteValue(byte[] ID) {
+        this.storedValues.remove(ID);
+    }
+
+    public void registerRepublish() {
+        this.lastRepublish = System.currentTimeMillis();
+    }
+
+    public void registerOriginalContentRepublish() {
+        this.lastOriginalRepublish = System.currentTimeMillis();
+    }
+
+    /**
+     * Iterate to verify what operations must be performed
+     * Namely stuff like refreshing buckets, republishing our stored values,
+     * Content refresh, etc..
+     */
+    public void iterate() {
+
+        for (int i = 0; i < this.kBuckets.size(); i++) {
+
+            if (System.currentTimeMillis() - this.lastKBucketUpdate.get(i) > P2PStandards.T_REFRESH) {
+                new RefreshBucketOperation(i, this).execute();
+            }
+
+        }
+
+        for (Map.Entry<byte[], StoredKeyMetadata> storedData : this.storedValues.entrySet()) {
+
+            if (System.currentTimeMillis() - storedData.getValue().getLastUpdated() > P2PStandards.T_EXPIRE) {
+                deleteValue(storedData.getKey());
+            }
+
+        }
+
+        if (System.currentTimeMillis() - lastOriginalRepublish > P2PStandards.T_REPUBLISH) {
+            registerOriginalContentRepublish();
+
+            new OriginalContentRepublishOperation(this).execute();
+        }
+
+        if (System.currentTimeMillis() - lastRepublish > P2PStandards.T_REPLICATE) {
+            registerRepublish();
+
+            new ContentRepublishOperation(this).execute();
+        }
+
     }
 
 }

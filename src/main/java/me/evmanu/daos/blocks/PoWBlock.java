@@ -31,7 +31,7 @@ public class PoWBlock extends Block {
 
         final var blockHash = getHeader().getBlockHash();
 
-        return ByteHelper.hasFirstBitsToZero(blockHash, ZEROS_REQUIRED);
+        return ByteHelper.hasFirstBitsSetToZero(blockHash, ZEROS_REQUIRED);
     }
 
     @Override

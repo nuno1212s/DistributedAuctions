@@ -10,6 +10,7 @@ import me.evmanu.p2p.kademlia.CRChallenge;
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
 
+import java.util.List;
 import java.util.logging.Logger;
 
 /**
@@ -41,7 +42,8 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
 
     @Override
     public void store(Store request, StreamObserver<Store> responseObserver) {
-        node.storeValue(request.getRequestingNodeID().toByteArray(), request.getKey().toByteArray(), request.getValue().toByteArray());
+        node.storeValue(request.getOwningNodeID().toByteArray(), request.getKey().toByteArray(),
+                request.getValue().toByteArray());
 
         responseObserver.onNext(Store.newBuilder().setValue(request.getValue()).build());
 
@@ -64,10 +66,33 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
     }
 
     @Override
-    public void findValue(TargetID request, StreamObserver<Store> responseObserver) {
-        final var result = this.node.loadValue(request.getTargetID().toByteArray());
+    public void findValue(TargetID request, StreamObserver<FoundValue> responseObserver) {
 
-        responseObserver.onNext(Store.newBuilder().setValue(ByteString.copyFrom(result)).build());
+        byte[] targetID = request.getTargetID().toByteArray();
+
+        final var result = this.node.loadValue(targetID);
+
+        //If the node did not receive a store request for this value, then
+        //Return the K closest nodes.
+        if (result == null) {
+            List<NodeTriple> closestNodes = this.node.findKClosestNodes(targetID);
+
+            for (NodeTriple closestNode : closestNodes) {
+
+                FoundValue foundValue = FoundValue.newBuilder()
+                        .setValueKind(StoreKind.NODES)
+                        .setKey(ByteString.copyFrom(closestNode.getNodeID())).build();
+
+                responseObserver.onNext(foundValue);
+            }
+        } else {
+            FoundValue foundValue = FoundValue.newBuilder().setValueKind(StoreKind.VALUE_FOUND)
+                    .setKey(request.getTargetID())
+                    .setValue(ByteString.copyFrom(result))
+                    .build();
+
+            responseObserver.onNext(foundValue);
+        }
 
         responseObserver.onCompleted();
     }

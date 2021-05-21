@@ -44,7 +44,7 @@ public class NodeLookupOperation implements Operation {
 
         nodes.forEach(closeNode -> currentOperations.put(closeNode, NodeOperationState.NOT_ASKED));
 
-        this.callWhenDone = callWhenDone;
+        this.callWhenDone = callWhenDone != null ? callWhenDone : (_n) -> {};
     }
 
     @Override
@@ -60,6 +60,10 @@ public class NodeLookupOperation implements Operation {
             this.future.cancel(true);
 
             this.callWhenDone.accept(this.closestKNodesWithState(NodeOperationState.RESPONDED));
+
+            int kBucket = P2PStandards.getKBucketFor(this.localNode.getNodeID(), this.lookupID);
+
+            this.localNode.kBucketUpdated(kBucket);
         }
     }
 
@@ -126,6 +130,7 @@ public class NodeLookupOperation implements Operation {
     }
 
     public List<NodeTriple> closestKNodesWithState(NodeOperationState operationState) {
+
         List<NodeTriple> nodes = new LinkedList<>();
 
         /*
@@ -134,7 +139,7 @@ public class NodeLookupOperation implements Operation {
          */
         for (Map.Entry<NodeTriple, NodeOperationState> node : this.currentOperations.entrySet()) {
 
-            if (node.getValue() == operationState) {
+            if (node.getValue() != operationState) {
                 continue;
             }
 
