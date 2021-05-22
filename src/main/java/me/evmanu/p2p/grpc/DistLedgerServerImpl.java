@@ -9,6 +9,7 @@ import me.evmanu.*;
 import me.evmanu.p2p.kademlia.CRChallenge;
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
+import me.evmanu.util.Hex;
 
 import java.util.List;
 import java.util.logging.Logger;

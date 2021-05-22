@@ -19,6 +19,8 @@ public class P2PNode {
 
     private final DistLedgerClientManager clientManager;
 
+    private final int nodePublicPort;
+
     private final byte[] nodeID;
 
     private final ArrayList<ConcurrentLinkedDeque<NodeTriple>> kBuckets;
@@ -29,14 +31,17 @@ public class P2PNode {
 
     private final Map<byte[], StoredKeyMetadata> storedValues, publishedValues;
 
-    private final Map<NodeTriple, Pair<Long, Long>> storedCRCs;
+    private final Map<byte[], Pair<Long, Long>> storedCRCs;
 
-    private final Map<NodeTriple, Long> requestedCRCs;
+    private final Map<byte[], Long> requestedCRCs;
+
+    private final Map<byte[], Pair<Integer, Integer>> interactionsPerPeer;
 
     private long lastRepublish, lastOriginalRepublish;
 
-    public P2PNode(byte[] nodeID, DistLedgerClientManager clientManager) {
+    public P2PNode(byte[] nodeID, DistLedgerClientManager clientManager, int port) {
         this.nodeID = nodeID;
+        this.nodePublicPort = port;
         this.kBuckets = new ArrayList<>(P2PStandards.I);
         this.lastKBucketUpdate = new ArrayList<>(P2PStandards.I);
         this.nodeWaitList = new ConcurrentSkipListMap<>();
@@ -44,6 +49,7 @@ public class P2PNode {
         this.publishedValues = new ConcurrentHashMap<>();
         this.storedCRCs = new ConcurrentHashMap<>();
         this.requestedCRCs = new ConcurrentHashMap<>();
+        this.interactionsPerPeer = new ConcurrentHashMap<>();
 
         this.lastRepublish = System.currentTimeMillis();
         this.lastOriginalRepublish = System.currentTimeMillis();
@@ -55,7 +61,7 @@ public class P2PNode {
 
         this.clientManager = clientManager;
 
-        executor.scheduleAtFixedRate(this::iterate, 1, 1, TimeUnit.HOURS);
+        executor.scheduleAtFixedRate(this::iterate, 1, 1, TimeUnit.SECONDS);
     }
 
     /**
@@ -78,12 +84,14 @@ public class P2PNode {
 
             kBucket.addFirst(boostrap_node);
 
+            System.out.println("Populated k bucket " + kBucketFor + " with node " + boostrap_node);
+
             this.kBuckets.set(kBucketFor, kBucket);
         }
 
-        new NodeLookupOperation(this, getNodeID(), (_nodes) -> {
+        System.out.println("Populated k Buckets with the boostrap nodes, executing lookup on our own nodes.");
 
-        });
+        new NodeLookupOperation(this, getNodeID(), (_nodes) -> { }).execute();
     }
 
     public void pingHeadOfKBucket(int kBucket) {
@@ -104,6 +112,8 @@ public class P2PNode {
 
         Long requestChallenge = this.requestedCRCs.remove(triple);
 
+        System.out.println("Received CRC response from node " + triple);
+
         if (requestChallenge != null) {
 
             if (!crc.getKey().equals(requestChallenge)) {
@@ -111,7 +121,8 @@ public class P2PNode {
                 requestCRCFromNode(triple);
             } else {
                 if (CRChallenge.verifyCRChallenge(crc.getKey(), crc.getValue())) {
-                    this.storedCRCs.put(triple, crc);
+                    this.storedCRCs.put(triple.getNodeID(), crc);
+                    System.out.println("CRC challenge verified, node authenticated.");
 
                     //The challenge is correct so we can finally add this node to our routing table
                     //The response gets stored so if we see this same node later, we already know that it is a
@@ -126,9 +137,13 @@ public class P2PNode {
     }
 
     private void requestCRCFromNode(NodeTriple triple) {
+        if (this.requestedCRCs.containsKey(triple.getNodeID())) {
+            return;
+        }
+
         long challenge = CRChallenge.generateRandomChallenge();
 
-        this.requestedCRCs.put(triple, challenge);
+        this.requestedCRCs.put(triple.getNodeID(), challenge);
 
         this.clientManager.requestCRCFromNode(this, triple, challenge);
     }
@@ -173,6 +188,8 @@ public class P2PNode {
 
         boolean isPresent = false;
 
+        System.out.println("Failed to ping the node " + node);
+
         //Remove the node from the K Bucket
         while (iterator.hasNext()) {
             final var currentNode = iterator.next();
@@ -210,6 +227,8 @@ public class P2PNode {
 
         seen.setLastSeen(System.currentTimeMillis());
 
+        System.out.println("Node " + seen + " belongs in bucket " + kBucketFor);
+
         final var iterator = nodeTriples.iterator();
 
         boolean alreadyPresent = false;
@@ -226,6 +245,8 @@ public class P2PNode {
         }
 
         if (alreadyPresent) {
+            System.out.println("Node was already present in bucket, moving it to the back of the list");
+
             //If the node was already present, move it to the tail of the list
             nodeTriples.addLast(seen);
 
@@ -242,6 +263,8 @@ public class P2PNode {
             //Maybe send a Large prime number N for it to factorize? Or maybe send him a random number and he has
             //To find a Proof of work with X zeroes to be able to join the network
             if (!hasSolvedCRC(seen)) {
+
+                System.out.println("Node has not solved CRC. Sending it.");
                 requestCRCFromNode(seen);
 
                 return;
@@ -252,11 +275,13 @@ public class P2PNode {
                 //Ping the head of the list, wait for it's response.
                 //If it does not respond, remove it and concatenate this node into the last position of the array
                 //If it does respond, put it at the tail of the list and ignore this one
+                System.out.println("K bucket is full, appending to the wait list");
                 appendWaitingNode(kBucketFor, seen);
 
                 pingHeadOfKBucket(kBucketFor);
 
             } else {
+                System.out.println("Add the last node.");
                 //The node is not present in the K bucket and the bucket is not empty, so add this node to the tail of the list
                 nodeTriples.addLast(seen);
             }
@@ -382,6 +407,32 @@ public class P2PNode {
 
     public void registerOriginalContentRepublish() {
         this.lastOriginalRepublish = System.currentTimeMillis();
+    }
+
+    public void registerNegativeInteraction(byte[] node) {
+        this.interactionsPerPeer.compute(node, (nodeID, current) -> {
+
+            if (current == null || nodeID == null) {
+                return Pair.of(0, 1);
+            }
+
+            return current.mapValue((currentBad) -> currentBad + 1);
+        });
+    }
+
+    public void registerPositiveInteraction(byte[] node) {
+        this.interactionsPerPeer.compute(node, (nodeID, current) -> {
+
+            if (current == null || nodeID == null) {
+                return Pair.of(1, 0);
+            }
+
+            return current.mapKey((currentGood) -> currentGood + 1);
+        });
+    }
+
+    public Pair<Integer, Integer> getRegisteredInteractions(byte[] nodeID) {
+        return this.interactionsPerPeer.getOrDefault(nodeID, Pair.of(0, 0));
     }
 
     /**

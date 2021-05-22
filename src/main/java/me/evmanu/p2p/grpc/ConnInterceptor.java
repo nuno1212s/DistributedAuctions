@@ -1,9 +1,11 @@
 package me.evmanu.p2p.grpc;
 
 import io.grpc.*;
+import me.evmanu.CRCRequest;
 import me.evmanu.Ping;
 import me.evmanu.Store;
 import me.evmanu.TargetID;
+import me.evmanu.p2p.kademlia.CRChallenge;
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
 import me.evmanu.util.Hex;
@@ -34,7 +36,6 @@ public class ConnInterceptor implements ServerInterceptor {
         System.out.println(socketAddress.getHostName() + ":" + socketAddress.getHostString() +
                 ":" + socketAddress.getAddress().toString());
 
-        int port = socketAddress.getPort();
         InetAddress address = socketAddress.getAddress();
 
         return new ForwardingServerCallListener.SimpleForwardingServerCallListener<>(next.startCall(call, headers)) {
@@ -42,20 +43,32 @@ public class ConnInterceptor implements ServerInterceptor {
             public void onMessage(ReqT message) {
 
                 byte[] nodeID;
+                int port;
 
                 if (message instanceof Ping) {
                     nodeID = ((Ping) message).getNodeID().toByteArray();
+                    port = ((Ping) message).getRequestingNodePort();
                 } else if (message instanceof Store) {
                     nodeID = ((Store) message).getRequestingNodeID().toByteArray();
+                    port = ((Store) message).getRequestingNodePort();
                 } else if (message instanceof TargetID) {
                     nodeID = ((TargetID) message).getRequestingNodeID().toByteArray();
+                    port = ((TargetID) message).getRequestNodePort();
+                } else if (message instanceof CRCRequest) {
+                    nodeID = ((CRCRequest) message).getChallengingNodeID().toByteArray();
+                    port = ((CRCRequest) message).getChallengingNodePort();
                 } else {
                     super.onMessage(message);
 
                     return;
                 }
 
-                node.handleSeenNode(new NodeTriple(address, port, nodeID, System.currentTimeMillis()));
+                NodeTriple seen = new NodeTriple(address, port, nodeID, System.currentTimeMillis());
+
+                System.out.println("Received a message of the type " + message.getClass() + " from the node " +
+                        seen);
+
+                node.handleSeenNode(seen);
 
                 super.onMessage(message);
             }

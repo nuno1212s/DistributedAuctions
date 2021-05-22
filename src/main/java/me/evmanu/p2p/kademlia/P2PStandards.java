@@ -42,7 +42,7 @@ public class P2PStandards {
 
         try {
             BOOSTRAP_NODES1 = Arrays.asList(new NodeTriple(
-                    InetAddress.getLocalHost(), 8080, Hex.fromHexString("0123456789abcdef0123"), 0
+                    InetAddress.getByName("51.103.29.195"), 80, Hex.fromHexString("0123456789abcdef0123"), 0
             ));
         } catch (UnknownHostException e) {
             e.printStackTrace();

@@ -1,24 +1,24 @@
 package me.evmanu.p2p.grpc;
 
-import com.google.protobuf.ByteString;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
-import io.grpc.stub.StreamObserver;
-import me.evmanu.Ping;
-import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
+import me.evmanu.p2p.kademlia.P2PStandards;
 import me.evmanu.util.Hex;
+import org.apache.commons.cli.*;
 
 import java.io.IOException;
-import java.net.InetAddress;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 public class DistLedgerServer {
 
-    private static final int PORT = 8080;
+    public static final int DEFAULT_PORT = 80;
 
     private static final Logger logger = Logger.getLogger(DistLedgerServer.class.getName());
+
+    private static final Random random = new Random();
 
     private Server server;
 
@@ -30,14 +30,24 @@ public class DistLedgerServer {
         this.clientManager = new DistLedgerClientManager();
     }
 
-    public P2PNode start() throws IOException {
-        //TODO: Generate a node ID
+    public P2PNode start(String nodeHexString, int port) throws IOException {
+        byte[] nodeID = null;
 
-        final var p2PNode = new P2PNode(Hex.fromHexString("0123456789abcdef0123"), clientManager);
+        if (nodeHexString != null) {
+            nodeID = Hex.fromHexString(nodeHexString);
+        } else {
+            nodeID = new byte[P2PStandards.I / Byte.SIZE];
+
+            random.nextBytes(nodeID);
+        }
+
+        final var p2PNode = new P2PNode(nodeID, clientManager, port);
+
+        System.out.println("Initialized the node with an ID: " + Hex.toHexString(nodeID));
 
         serverImpl = new DistLedgerServerImpl(logger, p2PNode);
 
-        server = ServerBuilder.forPort(PORT)
+        server = ServerBuilder.forPort(port)
                 .intercept(new ConnInterceptor(p2PNode))
                 .addService(serverImpl)
                 .build().start();
@@ -73,8 +83,59 @@ public class DistLedgerServer {
 
         DistLedgerServer server = new DistLedgerServer();
 
+        Options options = new Options();
+
+        Option shouldBoostrap = new Option("bst", "boostrap", false, "Make the node boostrap");
+
+        shouldBoostrap.setRequired(false);
+
+        Option nodeID = new Option("nid", "nodeid", true, "Manually select a node ID");
+
+        shouldBoostrap.setRequired(false);
+
+        Option portArg = new Option("port", "port", true, "Manually select a port");
+
+        portArg.setRequired(false);
+
+        options.addOption(nodeID);
+
+        options.addOption(portArg);
+
+        options.addOption(shouldBoostrap);
+
+        CommandLineParser cmdLineParser = new DefaultParser();
+        HelpFormatter formatter = new HelpFormatter();
+        CommandLine cmd;
+
         try {
-            final var node = server.start();
+            cmd = cmdLineParser.parse(options, args);
+        } catch (ParseException e) {
+            System.out.println(e.getMessage());
+            formatter.printHelp("Kademlia", options);
+
+            System.exit(1);
+            return;
+        }
+
+        try {
+
+            String indicatedNodeID = null;
+
+            if (cmd.hasOption("nid")) {
+                indicatedNodeID = cmd.getOptionValue("nid");
+            }
+
+            int port = DEFAULT_PORT;
+
+            if (cmd.hasOption("port")) {
+                port = Integer.parseInt(cmd.getOptionValue("port"));
+            }
+
+            final var node = server.start(indicatedNodeID, port);
+
+            if (cmd.hasOption("bst")) {
+                node.boostrap();
+            }
 
             System.out.println("Started server.");
 

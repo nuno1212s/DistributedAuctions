@@ -4,8 +4,8 @@ import me.evmanu.daos.blocks.BlockChain;
 
 public class DistLedger {
 
-    public static void main(String[] args) {
-
-    }
+//    public static void main(String[] args) {
+//
+//    }
 
 }

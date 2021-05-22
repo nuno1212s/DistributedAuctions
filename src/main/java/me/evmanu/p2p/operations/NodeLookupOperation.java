@@ -83,6 +83,8 @@ public class NodeLookupOperation implements Operation {
         }
 
         for (NodeTriple nodeTriple : nodeTriples) {
+            System.out.println("Asking node " + nodeTriple);
+
             localNode.getClientManager().performLookupFor(this.localNode, this, nodeTriple, this.lookupID);
 
             currentOperations.put(nodeTriple, NodeOperationState.WAITING_RESPONSE);

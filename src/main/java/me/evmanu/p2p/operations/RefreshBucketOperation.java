@@ -22,6 +22,8 @@ public class RefreshBucketOperation implements Operation {
 
         //An ID that is 2^kBucket < dist(ID, node.ID) < 2^kBucket+1 for us to perform a lookup operation on
 
+        System.out.println("Refreshing bucket " + this.kBucket);
+
         byte[] kBucketID = generateIDForBucket(this.node, kBucket);
 
         NodeLookupOperation lookupOperation = new NodeLookupOperation(node, kBucketID,

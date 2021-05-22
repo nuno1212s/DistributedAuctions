@@ -20,19 +20,28 @@ service P2PServer {
 
 message Ping {
   bytes nodeID = 1;
+  int32 requestingNodePort = 2;
+}
+
+
+message TargetID {
+  bytes requestingNodeID = 1;
+  int32 requestNodePort = 2;
+  bytes targetID = 3;
+}
+
+message Store {
+  bytes requestingNodeID = 1;
+  int32 requestingNodePort = 2;
+
+  bytes owningNodeID = 3;
+  bytes key = 4;
+  bytes value = 5;
 }
 
 enum StoreKind {
   VALUE_FOUND = 0;
   NODES = 1;
-}
-
-message Store {
-  bytes requestingNodeID = 1;
-
-  bytes owningNodeID = 2;
-  bytes key = 3;
-  bytes value = 4;
 }
 
 message FoundValue {
@@ -47,11 +56,6 @@ message FoundValue {
 
 }
 
-message TargetID {
-  bytes requestingNodeID = 1;
-  bytes targetID = 2;
-}
-
 message FoundNode {
   bytes nodeID = 1;
   string nodeAddress = 2;
@@ -62,7 +66,8 @@ message FoundNode {
 message CRCRequest {
 
   bytes challengingNodeID = 1;
-  int64 challenge = 2;
+  int32 challengingNodePort = 2;
+  int64 challenge = 3;
 
 }
 

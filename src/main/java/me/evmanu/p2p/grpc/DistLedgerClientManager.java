@@ -134,7 +134,12 @@ public class DistLedgerClientManager {
 
             List<NodeTriple> nodeTripleList = new LinkedList<>();
 
-            p2PServerStub.findNode(TargetID.newBuilder().setTargetID(ByteString.copyFrom(lookup)).build(), new StreamObserver<>() {
+            TargetID targetID = TargetID.newBuilder()
+                    .setRequestingNodeID(ByteString.copyFrom(node.getNodeID()))
+                    .setRequestNodePort(node.getNodePublicPort())
+                    .setTargetID(ByteString.copyFrom(lookup)).build();
+
+            p2PServerStub.findNode(targetID, new StreamObserver<>() {
                 @Override
                 public void onNext(FoundNode value) {
                     byte[] nodeID = value.getNodeID().toByteArray();
@@ -182,6 +187,7 @@ public class DistLedgerClientManager {
         }
 
         Store msg = Store.newBuilder().setRequestingNodeID(ByteString.copyFrom(node.getNodeID()))
+                .setRequestingNodePort(node.getNodePublicPort())
                 .setKey(ByteString.copyFrom(metadata.getKey()))
                 .setValue(ByteString.copyFrom(metadata.getValue()))
                 .setOwningNodeID(ByteString.copyFrom(metadata.getOwnerNodeID()))
@@ -189,7 +195,8 @@ public class DistLedgerClientManager {
 
         destinationStub.store(msg, new StreamObserver<>() {
             @Override
-            public void onNext(Store value) { }
+            public void onNext(Store value) {
+            }
 
             @Override
             public void onError(Throwable t) {
@@ -216,7 +223,9 @@ public class DistLedgerClientManager {
         }
 
         CRCRequest crrequest = CRCRequest.newBuilder()
-                .setChallenge(challenge).setChallengingNodeID(ByteString.copyFrom(sender.getNodeID()))
+                .setChallengingNodeID(ByteString.copyFrom(sender.getNodeID()))
+                .setChallengingNodePort(sender.getNodePublicPort())
+                .setChallenge(challenge)
                 .build();
 
         destinationStub.requestCRC(crrequest, new StreamObserver<>() {
@@ -242,8 +251,10 @@ public class DistLedgerClientManager {
         try {
             P2PServerGrpc.P2PServerStub destinationStub = newStub(destination);
 
-            TargetID targetID = TargetID.newBuilder().setTargetID(ByteString.copyFrom(target))
-                    .setRequestingNodeID(ByteString.copyFrom(node.getNodeID())).build();
+            TargetID targetID = TargetID.newBuilder()
+                    .setRequestingNodeID(ByteString.copyFrom(node.getNodeID()))
+                    .setRequestNodePort(node.getNodePublicPort())
+                    .setTargetID(ByteString.copyFrom(target)).build();
 
             AtomicReference<byte[]> foundValue = new AtomicReference<>(null);
 

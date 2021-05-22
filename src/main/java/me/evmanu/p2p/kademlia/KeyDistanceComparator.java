@@ -13,7 +13,6 @@ public class KeyDistanceComparator implements Comparator<NodeTriple> {
     public KeyDistanceComparator(byte[] nodeID) {
 
         this.centerNodeID = new BigInteger(1, nodeID);
-
     }
 
     @Override
