@@ -29,6 +29,8 @@ public class NodeLookupOperation implements Operation {
 
     private final Consumer<List<NodeTriple>> callWhenDone;
 
+    private boolean finished = false;
+
     private ScheduledFuture<?> future;
 
     public NodeLookupOperation(P2PNode node, byte[] lookupID, Consumer<List<NodeTriple>> callWhenDone) {
@@ -49,6 +51,8 @@ public class NodeLookupOperation implements Operation {
 
     @Override
     public void execute() {
+        localNode.registerOngoingOperation(this);
+
         this.future = scheduledExecutor.scheduleAtFixedRate(this::iterate, 1, 1, TimeUnit.SECONDS);
 
         iterate();
@@ -64,6 +68,16 @@ public class NodeLookupOperation implements Operation {
             int kBucket = P2PStandards.getKBucketFor(this.localNode.getNodeID(), this.lookupID);
 
             this.localNode.kBucketUpdated(kBucket);
+
+            setFinished(true);
+        }
+    }
+
+    public void setFinished(boolean finished) {
+        this.finished = finished;
+
+        if (finished) {
+            this.localNode.registerOperationDone(this);
         }
     }
 
@@ -79,6 +93,7 @@ public class NodeLookupOperation implements Operation {
         List<NodeTriple> nodeTriples = closestKNodesWithState(NodeOperationState.NOT_ASKED);
 
         if (nodeTriples.isEmpty() && waiting_response.isEmpty()) {
+            setFinished(true);
             return true;
         }
 
@@ -102,6 +117,11 @@ public class NodeLookupOperation implements Operation {
         }
 
         return false;
+    }
+
+    @Override
+    public boolean hasFinished() {
+        return this.finished;
     }
 
     public void handleFindNodeFailed(NodeTriple targetNode) {

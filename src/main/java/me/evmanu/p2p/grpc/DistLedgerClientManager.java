@@ -212,7 +212,7 @@ public class DistLedgerClientManager {
 
     }
 
-    public void requestCRCFromNode(P2PNode sender, NodeTriple destination, long challenge) {
+    public void requestCRCFromNode(P2PNode sender, RequestCRCOperation operation, NodeTriple destination, long challenge) {
 
         P2PServerGrpc.P2PServerStub destinationStub = null;
         try {
@@ -221,7 +221,7 @@ public class DistLedgerClientManager {
 
             e.printStackTrace();
 
-            sender.handleFailedNodePing(destination);
+            operation.handleRequestFailed();
 
             return;
         }
@@ -235,13 +235,13 @@ public class DistLedgerClientManager {
         destinationStub.requestCRC(crrequest, new StreamObserver<>() {
             @Override
             public void onNext(CRCResponse value) {
-                sender.receivedCRCFromNode(destination, Pair.of(value.getChallenge(), value.getResponse()));
+                operation.handleRequestResponse(value.getChallenge(), value.getResponse());
             }
 
             @Override
             public void onError(Throwable t) {
                 t.printStackTrace();
-                sender.handleFailedNodePing(destination);
+                operation.handleRequestFailed();
             }
 
             @Override

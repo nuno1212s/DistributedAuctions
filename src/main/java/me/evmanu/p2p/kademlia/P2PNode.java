@@ -2,10 +2,7 @@ package me.evmanu.p2p.kademlia;
 
 import lombok.Getter;
 import me.evmanu.p2p.grpc.DistLedgerClientManager;
-import me.evmanu.p2p.nodeoperations.ContentRepublishOperation;
-import me.evmanu.p2p.nodeoperations.NodeLookupOperation;
-import me.evmanu.p2p.nodeoperations.OriginalContentRepublishOperation;
-import me.evmanu.p2p.nodeoperations.RefreshBucketOperation;
+import me.evmanu.p2p.nodeoperations.*;
 import me.evmanu.util.ByteWrapper;
 import me.evmanu.util.Pair;
 
@@ -18,11 +15,11 @@ public class P2PNode {
 
     private static final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
-    private final DistLedgerClientManager clientManager;
+    private final byte[] nodeID;
 
     private final int nodePublicPort;
 
-    private final byte[] nodeID;
+    private final DistLedgerClientManager clientManager;
 
     private final ArrayList<ConcurrentLinkedDeque<NodeTriple>> kBuckets;
 
@@ -38,6 +35,8 @@ public class P2PNode {
 
     private final Map<ByteWrapper, Pair<Integer, Integer>> interactionsPerPeer;
 
+    private final List<Operation> onGoingOperations;
+
     private long lastRepublish, lastOriginalRepublish;
 
     public P2PNode(byte[] nodeID, DistLedgerClientManager clientManager, int port) {
@@ -51,6 +50,7 @@ public class P2PNode {
         this.storedCRCs = new ConcurrentHashMap<>();
         this.requestedCRCs = new ConcurrentHashMap<>();
         this.interactionsPerPeer = new ConcurrentHashMap<>();
+        this.onGoingOperations = Collections.synchronizedList(new LinkedList<>());
 
         this.lastRepublish = System.currentTimeMillis();
         this.lastOriginalRepublish = System.currentTimeMillis();
@@ -89,9 +89,10 @@ public class P2PNode {
             this.kBuckets.set(kBucketFor, kBucket);
         }
 
-        System.out.println("Populated k Buckets with the boostrap nodes, executing lookup on our own nodes.");
+        System.out.println("Populated k Buckets with the boostrap nodes, executing lookup on our own node ID.");
 
-        new NodeLookupOperation(this, getNodeID(), (_nodes) -> { }).execute();
+        new NodeLookupOperation(this, getNodeID(), (_nodes) -> {
+        }).execute();
     }
 
     public void pingHeadOfKBucket(int kBucket) {
@@ -108,36 +109,12 @@ public class P2PNode {
         return this.storedCRCs.containsKey(triple.getNodeID());
     }
 
-    public void receivedCRCFromNode(NodeTriple triple, Pair<Long, Long> crc) {
+    public void storeCRCResponse(NodeTriple triple, long challenge, long response) {
+        this.storedCRCs.put(triple.getNodeID(), Pair.of(challenge, response));
+    }
 
-        Long requestChallenge = this.requestedCRCs.remove(triple.getNodeID());
-
-        System.out.println("Received CRC response from node " + triple);
-
-        if (requestChallenge != null) {
-
-            if (!crc.getKey().equals(requestChallenge)) {
-                //The challenge returned does not equal the challenge done
-                System.out.println("Challenge is not the challenge that was sent " + crc.getKey() + " vs " + requestChallenge);
-
-                requestCRCFromNode(triple);
-            } else {
-                if (CRChallenge.verifyCRChallenge(crc.getKey(), crc.getValue())) {
-                    this.storedCRCs.put(triple.getNodeID(), crc);
-
-                    System.out.println("CRC challenge verified, node authenticated.");
-
-                    //The challenge is correct so we can finally add this node to our routing table
-                    //The response gets stored so if we see this same node later, we already know that it is a
-                    //Valid node.
-                    handleSeenNode(triple);
-                } else {
-                    System.out.println("Challenge is not correct for node " + triple);
-                    //The CR challenge is not correct
-                    requestCRCFromNode(triple);
-                }
-            }
-        }
+    public void storeCRCRequest(NodeTriple triple, long challenge) {
+        this.requestedCRCs.put(triple.getNodeID(), challenge);
     }
 
     private void requestCRCFromNode(NodeTriple triple) {
@@ -147,11 +124,7 @@ public class P2PNode {
             return;
         }
 
-        long challenge = CRChallenge.generateRandomChallenge();
-
-        this.requestedCRCs.put(triple.getNodeID(), challenge);
-
-        this.clientManager.requestCRCFromNode(this, triple, challenge);
+        new RequestCRCOperation(this, triple).execute();
     }
 
     private void appendWaitingNode(int kBucket, NodeTriple nodeTriple) {
@@ -281,13 +254,13 @@ public class P2PNode {
                 //Ping the head of the list, wait for it's response.
                 //If it does not respond, remove it and concatenate this node into the last position of the array
                 //If it does respond, put it at the tail of the list and ignore this one
-                System.out.println("K bucket is full, appending to the wait list");
+                System.out.println("K bucket is full, appending to the wait list and pinging head");
                 appendWaitingNode(kBucketFor, seen);
 
                 pingHeadOfKBucket(kBucketFor);
 
             } else {
-                System.out.println("Add the last node.");
+                System.out.println("Added the node in the last position of the bucket.");
                 //The node is not present in the K bucket and the bucket is not empty, so add this node to the tail of the list
                 nodeTriples.addLast(seen);
             }
@@ -381,6 +354,17 @@ public class P2PNode {
         return new ArrayList<>(sortedNodes);
     }
 
+    public List<NodeTriple> collectAllNodesInRoutingTable() {
+
+        List<NodeTriple> nodes = new LinkedList<>();
+
+        for (ConcurrentLinkedDeque<NodeTriple> kBucket : this.kBuckets) {
+            nodes.addAll(kBucket);
+        }
+
+        return nodes;
+    }
+
     public void storeValue(byte[] originNodeID, byte[] ID, byte[] value) {
 
         ByteWrapper wrapped_ID = new ByteWrapper(ID);
@@ -440,6 +424,18 @@ public class P2PNode {
 
     public Pair<Integer, Integer> getRegisteredInteractions(byte[] nodeID) {
         return this.interactionsPerPeer.getOrDefault(new ByteWrapper(nodeID), Pair.of(0, 0));
+    }
+
+    public void registerOngoingOperation(Operation operation) {
+        this.onGoingOperations.add(operation);
+    }
+
+    public void registerOperationDone(Operation operation) {
+        this.onGoingOperations.remove(operation);
+    }
+
+    public void waitForAllOperations() {
+        while (!this.onGoingOperations.isEmpty()) { }
     }
 
     /**

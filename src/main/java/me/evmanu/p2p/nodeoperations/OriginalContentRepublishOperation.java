@@ -9,9 +9,14 @@ import me.evmanu.util.ByteWrapper;
 import java.util.List;
 import java.util.Map;
 
-public class OriginalContentRepublishOperation implements StoreOperationBase{
+/**
+ * Republish the content that is owned by us in the P2P network
+ */
+public class OriginalContentRepublishOperation implements StoreOperationBase {
 
     private final P2PNode node;
+
+    private boolean finished = false;
 
     public OriginalContentRepublishOperation(P2PNode node) {
         this.node = node;
@@ -19,6 +24,8 @@ public class OriginalContentRepublishOperation implements StoreOperationBase{
 
     @Override
     public void execute() {
+
+        node.registerOngoingOperation(this);
 
         Map<ByteWrapper, StoredKeyMetadata> publishedValues = node.getPublishedValues();
 
@@ -37,6 +44,8 @@ public class OriginalContentRepublishOperation implements StoreOperationBase{
             }
 
         });
+
+        setFinished(true);
     }
 
     @Override
@@ -47,5 +56,18 @@ public class OriginalContentRepublishOperation implements StoreOperationBase{
     @Override
     public void handleFailedStore(NodeTriple triple) {
         this.node.handleFailedNodePing(triple);
+    }
+
+    public void setFinished(boolean finished) {
+        this.finished = finished;
+
+        if (finished) {
+            this.node.registerOperationDone(this);
+        }
+    }
+
+    @Override
+    public boolean hasFinished() {
+        return this.finished;
     }
 }

@@ -8,9 +8,11 @@ import java.util.BitSet;
 
 public class RefreshBucketOperation implements Operation {
 
-    private int kBucket;
+    private final int kBucket;
 
-    private P2PNode node;
+    private final P2PNode node;
+
+    private boolean finished = false;
 
     public RefreshBucketOperation(int kBucket, P2PNode node) {
         this.kBucket = kBucket;
@@ -24,12 +26,27 @@ public class RefreshBucketOperation implements Operation {
 
         System.out.println("Refreshing bucket " + this.kBucket);
 
+        this.node.registerOngoingOperation(this);
+
         byte[] kBucketID = generateIDForBucket(this.node, kBucket);
 
         NodeLookupOperation lookupOperation = new NodeLookupOperation(node, kBucketID,
-                (_nodes) -> { });
+                (_nodes) -> setFinished(true));
 
         lookupOperation.execute();
+    }
+
+    public void setFinished(boolean finished) {
+        this.finished = finished;
+
+        if (finished) {
+            this.node.registerOperationDone(this);
+        }
+    }
+
+    @Override
+    public boolean hasFinished() {
+        return finished;
     }
 
     private static byte[] generateIDForBucket(P2PNode node, int kBucket) {

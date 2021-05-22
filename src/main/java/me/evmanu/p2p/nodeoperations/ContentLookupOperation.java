@@ -15,6 +15,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+/**
+ * Performs a content lookup operation
+ * (Basically a FIND_VALUE operation, which is based on the {@link NodeLookupOperation})
+ */
 public class ContentLookupOperation implements Operation {
 
     private final P2PNode centerNode;
@@ -26,6 +30,8 @@ public class ContentLookupOperation implements Operation {
     private final Map<NodeTriple, Long> pending_requests;
 
     private final AtomicBoolean isContentFound = new AtomicBoolean(false);
+
+    private boolean finished = false;
 
     private final Consumer<byte[]> resultConsumer;
 
@@ -50,6 +56,8 @@ public class ContentLookupOperation implements Operation {
 
     @Override
     public void execute() {
+
+        this.centerNode.registerOngoingOperation(this);
 
         future = Operation.scheduledExecutor.scheduleAtFixedRate(this::iterate, 50, 50, TimeUnit.MILLISECONDS);
 
@@ -82,6 +90,7 @@ public class ContentLookupOperation implements Operation {
         List<NodeTriple> nodes = closestKNodesWithState(NodeOperationState.NOT_ASKED);
 
         if (nodes.isEmpty() && pending_requests.isEmpty()) {
+            setFinished(true);
             return true;
         }
 
@@ -103,9 +112,19 @@ public class ContentLookupOperation implements Operation {
         return false;
     }
 
+    public void setFinished(boolean finished) {
+        this.finished = finished;
+
+        if (finished) {
+            this.centerNode.registerOperationDone(this);
+        }
+    }
+
     public void handleFoundValue(NodeTriple triple, byte[] value) {
 
         this.foundValue = value;
+
+        setFinished(true);
 
         this.isContentFound.set(true);
 
@@ -158,5 +177,8 @@ public class ContentLookupOperation implements Operation {
         return nodes;
     }
 
-
+    @Override
+    public boolean hasFinished() {
+        return this.finished;
+    }
 }

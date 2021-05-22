@@ -34,20 +34,7 @@ public class ConnInterceptor implements ServerInterceptor {
 
         InetSocketAddress socketAddress = (InetSocketAddress) remoteAddr;
 
-        System.out.println(socketAddress.getHostName() + ":" + socketAddress.getHostString() +
-                ":" + socketAddress.getAddress().toString());
-
-        InetAddress address = null;
-
-        try {
-            address = InetAddress.getByName(socketAddress.getHostName());
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-
-            return next.startCall(call, headers);
-        }
-
-        InetAddress finalAddress = address;
+        InetAddress finalAddress = socketAddress.getAddress();
 
         return new ForwardingServerCallListener.SimpleForwardingServerCallListener<>(next.startCall(call, headers)) {
             @Override

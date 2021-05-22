@@ -9,10 +9,16 @@ import me.evmanu.util.ByteWrapper;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Republish the content that is contained in this node to the other nodes in the network
+ */
 public class ContentRepublishOperation implements StoreOperationBase {
 
     private final P2PNode node;
+
+    private boolean finished = false;
 
     public ContentRepublishOperation(P2PNode node) {
         this.node = node;
@@ -20,6 +26,8 @@ public class ContentRepublishOperation implements StoreOperationBase {
 
     @Override
     public void execute() {
+
+        this.node.registerOngoingOperation(this);
 
         Map<ByteWrapper, StoredKeyMetadata> storedValues = this.node.getStoredValues();
 
@@ -49,6 +57,21 @@ public class ContentRepublishOperation implements StoreOperationBase {
             }
 
         });
+
+        setFinished(true);
+    }
+
+    public void setFinished(boolean finished) {
+        this.finished = finished;
+
+        if (finished) {
+            this.node.registerOperationDone(this);
+        }
+    }
+
+    @Override
+    public boolean hasFinished() {
+        return finished;
     }
 
     @Override

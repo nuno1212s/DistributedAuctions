@@ -12,4 +12,6 @@ public interface Operation {
 
     public void execute();
 
+    public boolean hasFinished();
+
 }

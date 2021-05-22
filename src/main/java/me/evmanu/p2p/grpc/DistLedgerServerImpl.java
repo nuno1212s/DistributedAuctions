@@ -12,6 +12,7 @@ import me.evmanu.p2p.kademlia.P2PNode;
 import me.evmanu.util.Hex;
 
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -101,7 +102,8 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
     @Override
     public void requestCRC(CRCRequest request, StreamObserver<CRCResponse> responseObserver) {
 
-        System.out.println("RECEIVED CRC Request " + request);
+        logger.log(Level.INFO, "Received CRC Request from node " + Hex.toHexString(request.getChallengingNodeID().toByteArray())
+         + " with challenge " + request.getChallenge());
 
         long challenge = request.getChallenge();
 

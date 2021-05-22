@@ -1,9 +1,11 @@
 import me.evmanu.p2p.grpc.DistLedgerServer;
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.util.Arrays;
 
 public class KademliaTests {
 
@@ -17,8 +19,19 @@ public class KademliaTests {
 
             P2PNode node2 = kademliaNode2.start(null, 8081);
 
-//            node1.boostrap(new NodeTriple(node2.getNodeID()));
-        } catch (IOException e) {
+            node1.boostrap(Arrays.asList(new NodeTriple(InetAddress.getLocalHost(),
+                    8081, node2.getNodeID(), System.currentTimeMillis())));
+
+            node1.waitForAllOperations();
+            node2.waitForAllOperations();
+
+            System.out.println("ALL NODES: " + node1.collectAllNodesInRoutingTable());
+
+            System.out.println("ALL NODES 2: " + node2.collectAllNodesInRoutingTable());
+
+            kademliaNode1.blockUntilShutdown();
+
+        } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
 

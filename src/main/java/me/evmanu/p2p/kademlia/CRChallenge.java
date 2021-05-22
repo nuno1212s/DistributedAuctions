@@ -57,16 +57,8 @@ public class CRChallenge {
 
             byte[] hashResult = digest.digest();
 
-            System.out.println(Hex.toHexString(hashResult));
-
             if (ByteHelper.hasFirstBitsSetToZero(hashResult, CRC_DIFFICULTY)) {
                 return response;
-            }
-
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
             }
 
             digest.reset();
