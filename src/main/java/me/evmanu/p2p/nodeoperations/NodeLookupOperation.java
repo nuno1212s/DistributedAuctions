@@ -1,4 +1,4 @@
-package me.evmanu.p2p.operations;
+package me.evmanu.p2p.nodeoperations;
 
 import me.evmanu.p2p.kademlia.KeyDistanceComparator;
 import me.evmanu.p2p.kademlia.NodeTriple;
@@ -49,7 +49,7 @@ public class NodeLookupOperation implements Operation {
 
     @Override
     public void execute() {
-        this.future = scheduledExecutor.scheduleAtFixedRate(this::iterate, 50, 50, TimeUnit.MILLISECONDS);
+        this.future = scheduledExecutor.scheduleAtFixedRate(this::iterate, 1, 1, TimeUnit.SECONDS);
 
         iterate();
     }
@@ -82,12 +82,14 @@ public class NodeLookupOperation implements Operation {
             return true;
         }
 
+        System.out.println(nodeTriples);
+
         for (NodeTriple nodeTriple : nodeTriples) {
             System.out.println("Asking node " + nodeTriple);
 
-            localNode.getClientManager().performLookupFor(this.localNode, this, nodeTriple, this.lookupID);
-
             currentOperations.put(nodeTriple, NodeOperationState.WAITING_RESPONSE);
+
+            localNode.getClientManager().performLookupFor(this.localNode, this, nodeTriple, this.lookupID);
 
             waiting_response.put(nodeTriple, System.currentTimeMillis());
 
@@ -134,6 +136,8 @@ public class NodeLookupOperation implements Operation {
     public List<NodeTriple> closestKNodesWithState(NodeOperationState operationState) {
 
         List<NodeTriple> nodes = new LinkedList<>();
+
+        System.out.println(currentOperations);
 
         /*
         Because this map is sorted by distance to lookupID, we know that the first nodes have the lowest distance from

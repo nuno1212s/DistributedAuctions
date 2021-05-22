@@ -2,10 +2,11 @@ package me.evmanu.p2p.kademlia;
 
 import lombok.Getter;
 import me.evmanu.p2p.grpc.DistLedgerClientManager;
-import me.evmanu.p2p.operations.ContentRepublishOperation;
-import me.evmanu.p2p.operations.NodeLookupOperation;
-import me.evmanu.p2p.operations.OriginalContentRepublishOperation;
-import me.evmanu.p2p.operations.RefreshBucketOperation;
+import me.evmanu.p2p.nodeoperations.ContentRepublishOperation;
+import me.evmanu.p2p.nodeoperations.NodeLookupOperation;
+import me.evmanu.p2p.nodeoperations.OriginalContentRepublishOperation;
+import me.evmanu.p2p.nodeoperations.RefreshBucketOperation;
+import me.evmanu.util.ByteWrapper;
 import me.evmanu.util.Pair;
 
 import java.math.BigInteger;
@@ -29,13 +30,13 @@ public class P2PNode {
 
     private final Map<Integer, LinkedList<NodeTriple>> nodeWaitList;
 
-    private final Map<byte[], StoredKeyMetadata> storedValues, publishedValues;
+    private final Map<ByteWrapper, StoredKeyMetadata> storedValues, publishedValues;
 
-    private final Map<byte[], Pair<Long, Long>> storedCRCs;
+    private final Map<ByteWrapper, Pair<Long, Long>> storedCRCs;
 
-    private final Map<byte[], Long> requestedCRCs;
+    private final Map<ByteWrapper, Long> requestedCRCs;
 
-    private final Map<byte[], Pair<Integer, Integer>> interactionsPerPeer;
+    private final Map<ByteWrapper, Pair<Integer, Integer>> interactionsPerPeer;
 
     private long lastRepublish, lastOriginalRepublish;
 
@@ -70,11 +71,10 @@ public class P2PNode {
      * Starts by inserting the boostrap nodes into our k buckets,
      * Then perform a node lookup on our own node ID to populate the our buckets
      */
-    public void boostrap() {
-        List<NodeTriple> boostrap_nodes = P2PStandards.getBOOSTRAP_NODES();
+    public void boostrap(List<NodeTriple> boostrap_nodes) {
 
         for (NodeTriple boostrap_node : boostrap_nodes) {
-            int kBucketFor = P2PStandards.getKBucketFor(boostrap_node.getNodeID(), this.getNodeID());
+            int kBucketFor = P2PStandards.getKBucketFor(boostrap_node.getNodeID().getBytes(), this.getNodeID());
 
             ConcurrentLinkedDeque<NodeTriple> kBucket = this.kBuckets.get(kBucketFor);
 
@@ -105,12 +105,12 @@ public class P2PNode {
     }
 
     private boolean hasSolvedCRC(NodeTriple triple) {
-        return this.storedCRCs.containsKey(triple);
+        return this.storedCRCs.containsKey(triple.getNodeID());
     }
 
     public void receivedCRCFromNode(NodeTriple triple, Pair<Long, Long> crc) {
 
-        Long requestChallenge = this.requestedCRCs.remove(triple);
+        Long requestChallenge = this.requestedCRCs.remove(triple.getNodeID());
 
         System.out.println("Received CRC response from node " + triple);
 
@@ -118,10 +118,13 @@ public class P2PNode {
 
             if (!crc.getKey().equals(requestChallenge)) {
                 //The challenge returned does not equal the challenge done
+                System.out.println("Challenge is not the challenge that was sent " + crc.getKey() + " vs " + requestChallenge);
+
                 requestCRCFromNode(triple);
             } else {
                 if (CRChallenge.verifyCRChallenge(crc.getKey(), crc.getValue())) {
                     this.storedCRCs.put(triple.getNodeID(), crc);
+
                     System.out.println("CRC challenge verified, node authenticated.");
 
                     //The challenge is correct so we can finally add this node to our routing table
@@ -129,6 +132,7 @@ public class P2PNode {
                     //Valid node.
                     handleSeenNode(triple);
                 } else {
+                    System.out.println("Challenge is not correct for node " + triple);
                     //The CR challenge is not correct
                     requestCRCFromNode(triple);
                 }
@@ -137,7 +141,9 @@ public class P2PNode {
     }
 
     private void requestCRCFromNode(NodeTriple triple) {
+
         if (this.requestedCRCs.containsKey(triple.getNodeID())) {
+            System.out.println("Node " + triple + " already performed CRC.");
             return;
         }
 
@@ -180,7 +186,7 @@ public class P2PNode {
 
     public void handleFailedNodePing(NodeTriple node) {
 
-        final int kBucketFor = P2PStandards.getKBucketFor(this.nodeID, node.getNodeID());
+        final int kBucketFor = P2PStandards.getKBucketFor(this.nodeID, node.getNodeID().getBytes());
 
         final var bucketNodes = kBuckets.get(kBucketFor);
 
@@ -194,7 +200,7 @@ public class P2PNode {
         while (iterator.hasNext()) {
             final var currentNode = iterator.next();
 
-            if (Arrays.equals(node.getNodeID(), currentNode.getNodeID())) {
+            if (node.getNodeID().equals(currentNode.getNodeID())) {
                 isPresent = true;
                 break;
             }
@@ -208,16 +214,16 @@ public class P2PNode {
 
             //Remove the work proof of this node as it is no longer online so it
             //Might have been poisoned in the mean time
-            this.storedCRCs.remove(node);
+            this.storedCRCs.remove(node.getNodeID());
         } else {
             //Remove the CRC request if the node is offline
-            this.requestedCRCs.remove(node);
+            this.requestedCRCs.remove(node.getNodeID());
         }
     }
 
     public void handleSeenNode(NodeTriple seen) {
 
-        final int kBucketFor = P2PStandards.getKBucketFor(this.nodeID, seen.getNodeID());
+        final int kBucketFor = P2PStandards.getKBucketFor(this.nodeID, seen.getNodeID().getBytes());
 
         var nodeTriples = this.kBuckets.get(kBucketFor);
 
@@ -236,7 +242,7 @@ public class P2PNode {
         while (iterator.hasNext()) {
             final var currentNode = iterator.next();
 
-            if (Arrays.equals(seen.getNodeID(), currentNode.getNodeID())) {
+            if (seen.getNodeID().equals(currentNode.getNodeID())) {
 
                 alreadyPresent = true;
 
@@ -307,7 +313,6 @@ public class P2PNode {
      * @param lookupID     The ID of the center node
      */
     private void updateSortedNodes(int maxNodeCount, int kBucket, TreeSet<NodeTriple> sortedNodes, byte[] lookupID) {
-
         ConcurrentLinkedDeque<NodeTriple> nodeTriples = this.kBuckets.get(kBucket);
 
         if (nodeTriples == null) return;
@@ -322,8 +327,8 @@ public class P2PNode {
 
             NodeTriple lastNode = sortedNodes.last();
 
-            BigInteger lastNodeDist = P2PStandards.nodeDistance(lastNode.getNodeID(), lookupID),
-                    nodeTripleDist = P2PStandards.nodeDistance(nodeTriple.getNodeID(), lookupID);
+            BigInteger lastNodeDist = P2PStandards.nodeDistance(lastNode.getNodeID().getBytes(), lookupID),
+                    nodeTripleDist = P2PStandards.nodeDistance(nodeTriple.getNodeID().getBytes(), lookupID);
 
             //Seen as the tree set is sorted in ascending order of distance, we compare with the last node
             //If the distance is larger, than it's larger than all the nodes,
@@ -378,27 +383,29 @@ public class P2PNode {
 
     public void storeValue(byte[] originNodeID, byte[] ID, byte[] value) {
 
+        ByteWrapper wrapped_ID = new ByteWrapper(ID);
+
         if (Arrays.equals(originNodeID, this.getNodeID())) {
-            this.publishedValues.put(ID, new StoredKeyMetadata(ID, value, getNodeID()));
+            this.publishedValues.put(wrapped_ID, new StoredKeyMetadata(ID, value, getNodeID()));
         }
 
-        if (this.storedValues.containsKey(ID)) {
-            StoredKeyMetadata storedKey = this.storedValues.get(ID);
+        if (this.storedValues.containsKey(wrapped_ID)) {
+            StoredKeyMetadata storedKey = this.storedValues.get(wrapped_ID);
 
             storedKey.setValue(value);
         } else {
             StoredKeyMetadata storedKey = new StoredKeyMetadata(ID, value, originNodeID);
 
-            this.storedValues.put(ID, storedKey);
+            this.storedValues.put(wrapped_ID, storedKey);
         }
     }
 
     public byte[] loadValue(byte[] ID) {
-        return this.storedValues.get(ID).getValue();
+        return this.storedValues.get(new ByteWrapper(ID)).getValue();
     }
 
     public void deleteValue(byte[] ID) {
-        this.storedValues.remove(ID);
+        this.storedValues.remove(new ByteWrapper(ID));
     }
 
     public void registerRepublish() {
@@ -410,9 +417,9 @@ public class P2PNode {
     }
 
     public void registerNegativeInteraction(byte[] node) {
-        this.interactionsPerPeer.compute(node, (nodeID, current) -> {
+        this.interactionsPerPeer.compute(new ByteWrapper(node), (nodeID, current) -> {
 
-            if (current == null || nodeID == null) {
+            if (current == null) {
                 return Pair.of(0, 1);
             }
 
@@ -421,9 +428,9 @@ public class P2PNode {
     }
 
     public void registerPositiveInteraction(byte[] node) {
-        this.interactionsPerPeer.compute(node, (nodeID, current) -> {
+        this.interactionsPerPeer.compute(new ByteWrapper(node), (nodeID, current) -> {
 
-            if (current == null || nodeID == null) {
+            if (current == null) {
                 return Pair.of(1, 0);
             }
 
@@ -432,7 +439,7 @@ public class P2PNode {
     }
 
     public Pair<Integer, Integer> getRegisteredInteractions(byte[] nodeID) {
-        return this.interactionsPerPeer.getOrDefault(nodeID, Pair.of(0, 0));
+        return this.interactionsPerPeer.getOrDefault(new ByteWrapper(nodeID), Pair.of(0, 0));
     }
 
     /**
@@ -450,10 +457,10 @@ public class P2PNode {
 
         }
 
-        for (Map.Entry<byte[], StoredKeyMetadata> storedData : this.storedValues.entrySet()) {
+        for (Map.Entry<ByteWrapper, StoredKeyMetadata> storedData : this.storedValues.entrySet()) {
 
             if (System.currentTimeMillis() - storedData.getValue().getLastUpdated() > P2PStandards.T_EXPIRE) {
-                deleteValue(storedData.getKey());
+                deleteValue(storedData.getKey().getBytes());
             }
 
         }

@@ -3,6 +3,7 @@ package me.evmanu.p2p.kademlia;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
+import me.evmanu.util.ByteWrapper;
 import me.evmanu.util.Hex;
 
 import java.net.InetAddress;
@@ -16,14 +17,21 @@ public class NodeTriple implements Comparable<NodeTriple> {
 
     private final int udpPort;
 
-    private final byte[] nodeID;
+    private final ByteWrapper nodeID;
 
     @Setter
     private long lastSeen;
 
+    public NodeTriple(InetAddress ipAddress, int udpPort, byte[] nodeID, long lastSeen) {
+        this.ipAddress = ipAddress;
+        this.udpPort = udpPort;
+        this.nodeID = new ByteWrapper(nodeID);
+        this.lastSeen = lastSeen;
+    }
+
     @Override
     public int compareTo(NodeTriple o) {
-        return Arrays.compare(nodeID, o.getNodeID());
+        return Arrays.compare(nodeID.getBytes(), o.getNodeID().getBytes());
     }
 
     @Override
@@ -31,7 +39,7 @@ public class NodeTriple implements Comparable<NodeTriple> {
         return "NodeTriple{" +
                 "ipAddress=" + ipAddress +
                 ", udpPort=" + udpPort +
-                ", nodeID=" + Hex.toHexString(nodeID) +
+                ", nodeID=" + Hex.toHexString(nodeID.getBytes()) +
                 ", lastSeen=" + lastSeen +
                 '}';
     }

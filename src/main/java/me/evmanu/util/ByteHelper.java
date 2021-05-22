@@ -62,7 +62,7 @@ public class ByteHelper {
 
             //Get the amount of zeroes that are required for this byte, taking into account that the previous
             //Bytes were already checked
-            int zeroesRequiredInThisBlock = (zeroes - (block * Byte.SIZE)) % Byte.SIZE;
+            int zeroesRequiredInThisBlock = Math.min(zeroes - (block * Byte.SIZE), 8);
 
             final var byteWithFirstOnes = ByteHelper.getByteWithFirstOnes(zeroesRequiredInThisBlock);
 
@@ -74,7 +74,7 @@ public class ByteHelper {
             }
         }
 
-        return false;
+        return true;
     }
 
 }

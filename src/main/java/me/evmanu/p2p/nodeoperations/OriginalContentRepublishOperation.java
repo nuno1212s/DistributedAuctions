@@ -1,9 +1,10 @@
-package me.evmanu.p2p.operations;
+package me.evmanu.p2p.nodeoperations;
 
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
 import me.evmanu.p2p.kademlia.P2PStandards;
 import me.evmanu.p2p.kademlia.StoredKeyMetadata;
+import me.evmanu.util.ByteWrapper;
 
 import java.util.List;
 import java.util.Map;
@@ -19,7 +20,7 @@ public class OriginalContentRepublishOperation implements StoreOperationBase{
     @Override
     public void execute() {
 
-        Map<byte[], StoredKeyMetadata> publishedValues = node.getPublishedValues();
+        Map<ByteWrapper, StoredKeyMetadata> publishedValues = node.getPublishedValues();
 
         publishedValues.forEach((key, metadata) -> {
 
@@ -29,7 +30,7 @@ public class OriginalContentRepublishOperation implements StoreOperationBase{
 
             metadata.registerRepublished();
 
-            List<NodeTriple> closestNodes = this.node.findKClosestNodes(key);
+            List<NodeTriple> closestNodes = this.node.findKClosestNodes(key.getBytes());
 
             for (NodeTriple closestNode : closestNodes) {
                 this.node.getClientManager().performStoreFor(this.node, this, closestNode, metadata);

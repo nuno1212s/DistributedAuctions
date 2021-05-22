@@ -1,4 +1,4 @@
-package me.evmanu.p2p.operations;
+package me.evmanu.p2p.nodeoperations;
 
 import me.evmanu.p2p.kademlia.P2PNode;
 import me.evmanu.p2p.kademlia.P2PStandards;

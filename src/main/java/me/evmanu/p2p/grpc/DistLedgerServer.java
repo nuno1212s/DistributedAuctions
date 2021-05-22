@@ -133,8 +133,13 @@ public class DistLedgerServer {
 
             final var node = server.start(indicatedNodeID, port);
 
+            Thread thread = null;
             if (cmd.hasOption("bst")) {
-                node.boostrap();
+                thread = new Thread(() -> {
+                    node.boostrap(P2PStandards.getBOOSTRAP_NODES());
+                });
+
+                thread.start();
             }
 
             System.out.println("Started server.");

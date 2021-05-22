@@ -3,6 +3,7 @@ package me.evmanu.daos.blocks;
 import lombok.Getter;
 import me.evmanu.daos.transactions.Transaction;
 import me.evmanu.util.ByteHelper;
+import me.evmanu.util.ByteWrapper;
 
 import java.math.BigInteger;
 import java.security.MessageDigest;
@@ -19,7 +20,7 @@ public class PoWBlock extends Block {
 
     private final BigInteger workProof;
 
-    public PoWBlock(BlockHeader header, LinkedHashMap<byte[], Transaction> transactions,
+    public PoWBlock(BlockHeader header, LinkedHashMap<ByteWrapper, Transaction> transactions,
                     BigInteger workProof) {
         super(header, transactions);
 

@@ -3,6 +3,7 @@ package me.evmanu.p2p.kademlia;
 
 import me.evmanu.Standards;
 import me.evmanu.util.ByteHelper;
+import me.evmanu.util.Hex;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -19,7 +20,7 @@ public class CRChallenge {
     /**
      * The amount of zeroes that the hash of the challenge + response must have
      */
-    public static final int CRC_DIFFICULTY = 3;
+    public static final int CRC_DIFFICULTY = 1;
 
 
     public static long generateRandomChallenge() {
@@ -35,7 +36,7 @@ public class CRChallenge {
         bytes.putLong(challenge);
         bytes.putLong(response);
 
-        digest.update(bytes);
+        digest.update(bytes.array());
 
         byte[] hashResult = digest.digest();
 
@@ -52,12 +53,20 @@ public class CRChallenge {
             bytes.putLong(challenge);
             bytes.putLong(response);
 
-            digest.update(bytes);
+            digest.update(bytes.array());
 
             byte[] hashResult = digest.digest();
 
+            System.out.println(Hex.toHexString(hashResult));
+
             if (ByteHelper.hasFirstBitsSetToZero(hashResult, CRC_DIFFICULTY)) {
                 return response;
+            }
+
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
 
             digest.reset();

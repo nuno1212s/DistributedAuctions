@@ -13,6 +13,7 @@ import me.evmanu.util.Hex;
 import java.lang.annotation.Target;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 
 /**
  * Handle updating our k buckets when we receive a request from another kademlia node.
@@ -36,7 +37,17 @@ public class ConnInterceptor implements ServerInterceptor {
         System.out.println(socketAddress.getHostName() + ":" + socketAddress.getHostString() +
                 ":" + socketAddress.getAddress().toString());
 
-        InetAddress address = socketAddress.getAddress();
+        InetAddress address = null;
+
+        try {
+            address = InetAddress.getByName(socketAddress.getHostName());
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+
+            return next.startCall(call, headers);
+        }
+
+        InetAddress finalAddress = address;
 
         return new ForwardingServerCallListener.SimpleForwardingServerCallListener<>(next.startCall(call, headers)) {
             @Override
@@ -63,12 +74,17 @@ public class ConnInterceptor implements ServerInterceptor {
                     return;
                 }
 
-                NodeTriple seen = new NodeTriple(address, port, nodeID, System.currentTimeMillis());
+                NodeTriple seen = new NodeTriple(finalAddress, port, nodeID, System.currentTimeMillis());
 
                 System.out.println("Received a message of the type " + message.getClass() + " from the node " +
                         seen);
 
-                node.handleSeenNode(seen);
+                //Fork the context as handling seen nodes will probably call RPCs that originate from this
+                //Server (This is required by gRPC for programs that use a mix of client and server on the same
+                //JVM)
+                Context fork = Context.current().fork();
+
+                fork.run(() -> node.handleSeenNode(seen));
 
                 super.onMessage(message);
             }

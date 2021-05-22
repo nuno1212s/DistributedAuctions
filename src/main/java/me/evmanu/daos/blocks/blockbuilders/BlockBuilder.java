@@ -4,6 +4,7 @@ import lombok.Getter;
 import me.evmanu.daos.Hashable;
 import me.evmanu.daos.blocks.Block;
 import me.evmanu.daos.transactions.Transaction;
+import me.evmanu.util.ByteWrapper;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -27,7 +28,7 @@ public abstract class BlockBuilder implements Hashable, Cloneable {
     /**
      * This is thread-safe as the map contained is never altered, only copied and then the reference is updated
      */
-    private AtomicReference<LinkedHashMap<byte[], Transaction>> transactions;
+    private AtomicReference<LinkedHashMap<ByteWrapper, Transaction>> transactions;
 
     private AtomicLong timeGenerated;
 
@@ -46,7 +47,7 @@ public abstract class BlockBuilder implements Hashable, Cloneable {
      */
     public void addTransaction(Transaction transaction) {
 
-        LinkedHashMap<byte[], Transaction> transactions, newTransactions;
+        LinkedHashMap<ByteWrapper, Transaction> transactions, newTransactions;
 
         do {
 
@@ -54,7 +55,7 @@ public abstract class BlockBuilder implements Hashable, Cloneable {
 
             newTransactions = new LinkedHashMap<>(transactions);
 
-            newTransactions.put(transaction.getTxID(), transaction);
+            newTransactions.put(new ByteWrapper(transaction.getTxID()), transaction);
 
         } while (!this.transactions.compareAndSet(transactions, newTransactions));
 
@@ -63,18 +64,18 @@ public abstract class BlockBuilder implements Hashable, Cloneable {
     }
 
     public boolean hasTransaction(byte[] txID) {
-        return getTransactionsCurrentlyInBlock().containsKey(txID);
+        return getTransactionsCurrentlyInBlock().containsKey(new ByteWrapper(txID));
     }
 
-    public LinkedHashMap<byte[], Transaction> getTransactionsCurrentlyInBlock() {
+    public LinkedHashMap<ByteWrapper, Transaction> getTransactionsCurrentlyInBlock() {
         return this.transactions.get();
     }
 
     public Transaction getTransactionByID(byte[] txID) {
-        return getTransactionsCurrentlyInBlock().get(txID);
+        return getTransactionsCurrentlyInBlock().get(new ByteWrapper(txID));
     }
 
-    private byte[] calculateMerkleRoot(LinkedHashMap<byte[], Transaction> transactions) {
+    private byte[] calculateMerkleRoot(LinkedHashMap<ByteWrapper, Transaction> transactions) {
         //TODO:
         return new byte[0];
     }

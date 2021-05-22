@@ -1,8 +1,7 @@
-package me.evmanu.p2p.operations;
+package me.evmanu.p2p.nodeoperations;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Consumer;
 
 public interface Operation {
 

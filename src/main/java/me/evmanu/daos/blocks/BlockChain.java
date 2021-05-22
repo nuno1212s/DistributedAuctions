@@ -7,6 +7,7 @@ import me.evmanu.daos.blocks.blockbuilders.PoWBlockBuilder;
 import me.evmanu.daos.transactions.ScriptPubKey;
 import me.evmanu.daos.transactions.ScriptSignature;
 import me.evmanu.daos.transactions.Transaction;
+import me.evmanu.util.ByteWrapper;
 import me.evmanu.util.Hex;
 
 import java.util.*;
@@ -75,9 +76,9 @@ public class BlockChain {
 
         this.currentBlock = new PoWBlockBuilder(this.blockCount, this.version, block.getHeader().getBlockHash());
 
-        for (Map.Entry<byte[], Transaction> transactions : previousBlock.getTransactionsCurrentlyInBlock().entrySet()) {
+        for (Map.Entry<ByteWrapper, Transaction> transactions : previousBlock.getTransactionsCurrentlyInBlock().entrySet()) {
 
-            if (block.verifyTransactionIsInBlock(transactions.getKey())) {
+            if (block.verifyTransactionIsInBlock(transactions.getKey().getBytes())) {
                 //The transaction has already been included into the newly generated block
                 continue;
             }
@@ -136,11 +137,11 @@ public class BlockChain {
             return false;
         }
 
-        LinkedHashMap<byte[], Transaction> verifiedTransactions = new LinkedHashMap<>();
+        LinkedHashMap<ByteWrapper, Transaction> verifiedTransactions = new LinkedHashMap<>();
 
         //We want to gradually verify transactions, including the transactions that have already been
         //Verified, so that there is no double spending possibility inside the block
-        for (Map.Entry<byte[], Transaction> transaction : block.getTransactions().entrySet()) {
+        for (Map.Entry<ByteWrapper, Transaction> transaction : block.getTransactions().entrySet()) {
             if (!verifyTransaction(transaction.getValue(), block.getHeader().getBlockNumber(), verifiedTransactions)) {
                 return false;
             }
@@ -158,17 +159,19 @@ public class BlockChain {
      * @param outputsToCheck
      * @return
      */
-    private boolean verifyDoubleSpendingInTransactions(LinkedHashMap<byte[], Transaction> transactions,
-                                                       Map<byte[], List<Integer>> outputsToCheck) {
+    private boolean verifyDoubleSpendingInTransactions(LinkedHashMap<ByteWrapper, Transaction> transactions,
+                                                       Map<ByteWrapper, List<Integer>> outputsToCheck) {
 
-        for (Map.Entry<byte[], Transaction> transaction : transactions.entrySet()) {
+        for (Map.Entry<ByteWrapper, Transaction> transaction : transactions.entrySet()) {
 
             var trans = transaction.getValue();
 
             for (ScriptSignature input : trans.getInputs()) {
 
-                if (outputsToCheck.containsKey(input.getOriginatingTXID())) {
-                    var outputsTryingToSpend = outputsToCheck.get(input.getOriginatingTXID());
+                ByteWrapper wrappedOriginatingTXID = new ByteWrapper(input.getOriginatingTXID());
+
+                if (outputsToCheck.containsKey(wrappedOriginatingTXID)) {
+                    var outputsTryingToSpend = outputsToCheck.get(wrappedOriginatingTXID);
 
                     if (outputsTryingToSpend.contains(input.getOutputIndex())) {
                         System.out.println("The input coming from the transaction " +
@@ -194,15 +197,15 @@ public class BlockChain {
      * @return
      */
     private boolean verifyDoubleSpending(Transaction newTransaction, long currentBlockBeingChecked,
-                                         LinkedHashMap<byte[], Transaction> transactionsBeingVerified) {
+                                         LinkedHashMap<ByteWrapper, Transaction> transactionsBeingVerified) {
 
         long oldestOriginatingBlock = 0;
 
-        Map<byte[], List<Integer>> outputsToCheck = new HashMap<>();
+        Map<ByteWrapper, List<Integer>> outputsToCheck = new HashMap<>();
 
         for (ScriptSignature input : newTransaction.getInputs()) {
 
-            var originatingTXID = input.getOriginatingTXID();
+            var originatingTXID = new ByteWrapper(input.getOriginatingTXID());
 
             var outputsForTrans = outputsToCheck.getOrDefault(originatingTXID, new LinkedList<>());
 
@@ -259,10 +262,10 @@ public class BlockChain {
     }
 
     private Transaction verifyTransactionExistsInTransactions(ScriptSignature input,
-                                                              LinkedHashMap<byte[], Transaction> transactions) {
+                                                              LinkedHashMap<ByteWrapper, Transaction> transactions) {
 
         //Verify that the transaction that originated this input exists in the blockchain
-        final var transactionByID = transactions.getOrDefault(input.getOriginatingTXID(), null);
+        final var transactionByID = transactions.getOrDefault(new ByteWrapper(input.getOriginatingTXID()), null);
 
         if (transactionByID == null) {
             return null;
@@ -278,7 +281,7 @@ public class BlockChain {
     }
 
     protected boolean verifyTransaction(Transaction transaction, long currentlyExaminingBlock,
-                                        LinkedHashMap<byte[], Transaction> blockTransactions) {
+                                        LinkedHashMap<ByteWrapper, Transaction> blockTransactions) {
 
         if (!transaction.verifyTransactionID()) {
             return false;
@@ -304,7 +307,7 @@ public class BlockChain {
 
             if (doesBlockExist(input.getOriginatingBlock()) || (currentlyExaminingBlock == input.getOriginatingBlock())) {
 
-                LinkedHashMap<byte[], Transaction> transactions;
+                LinkedHashMap<ByteWrapper, Transaction> transactions;
 
                 if (isMinted(input.getOriginatingBlock())) {
                     transactions = getBlockByNumber(input.getOriginatingBlock()).getTransactions();
@@ -365,6 +368,7 @@ public class BlockChain {
 
     /**
      * Check if this block chain can be forked at a certain block
+     *
      * @param blockNumber
      * @return
      */

@@ -2,6 +2,7 @@ package me.evmanu.p2p.kademlia;
 
 import com.google.common.math.BigIntegerMath;
 import lombok.Getter;
+import me.evmanu.util.ByteWrapper;
 import me.evmanu.util.Hex;
 
 import java.math.BigInteger;
@@ -58,6 +59,10 @@ public class P2PStandards {
         if (nodeDistance.equals(BigInteger.ZERO)) return 0;
 
         return BigIntegerMath.log2(nodeDistance, RoundingMode.DOWN);
+    }
+
+    public static int getKBucketFor(ByteWrapper wrapper, ByteWrapper wrapper2) {
+        return getKBucketFor(wrapper.getBytes(), wrapper2.getBytes());
     }
 
     public static int getKBucketFor(BigInteger distance) {

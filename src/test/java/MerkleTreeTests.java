@@ -1,6 +1,7 @@
 import me.evmanu.daos.blocks.merkletree.MerkleTree;
 import me.evmanu.daos.blocks.merkletree.MerkleTreeNode;
 import me.evmanu.daos.transactions.Transaction;
+import me.evmanu.util.ByteWrapper;
 import me.evmanu.util.Hex;
 import org.junit.jupiter.api.Test;
 
@@ -38,28 +39,27 @@ public class MerkleTreeTests {
     // Same list as the previous one, but with the second hash different, to simulate a bad transaction
     byte[][] badTransactions = {hash1, badHash, hash3, hash4, hash5, hash6, hash7, hash8, hash9, hash10, hash11, hash12, hash13};
 
-    public LinkedHashMap<byte[], Transaction> getTestTransactionsX(int x, byte[][] hashList) {
+    public LinkedHashMap<ByteWrapper, Transaction> getTestTransactionsX(int x, byte[][] hashList) {
 
-        LinkedHashMap<byte[], Transaction> transactions = new LinkedHashMap<>();
+        LinkedHashMap<ByteWrapper, Transaction> transactions = new LinkedHashMap<>();
 
         assert hashList.length >= x : "Chosen number greater than the number of hashes available";
 
         for (int i = 0; i < x; i++)
-            transactions.put(hashList[i], null);
+            transactions.put(new ByteWrapper(hashList[i]), null);
 
         return transactions;
     }
 
-    LinkedHashMap<byte[], Transaction> validTransactionsList = getTestTransactionsX(nTransactions, validTransactions);
+    LinkedHashMap<ByteWrapper, Transaction> validTransactionsList = getTestTransactionsX(nTransactions, validTransactions);
 
-    LinkedHashMap<byte[], Transaction> badTransactionsList = getTestTransactionsX(nTransactions, badTransactions);
-
+    LinkedHashMap<ByteWrapper, Transaction> badTransactionsList = getTestTransactionsX(nTransactions, badTransactions);
 
     @Test
     public void printTestHashes() {
 
         System.out.print("Hashes that are going to be leaves: [ ");
-        for(byte[] key : validTransactionsList.keySet() ) {
+        for(ByteWrapper key : validTransactionsList.keySet() ) {
             Transaction currentTransaction = validTransactionsList.get(key);
 
             String s = Hex.toHexString(key);
@@ -110,7 +110,7 @@ public class MerkleTreeTests {
 
         byte[] rootHash = mt2.getRootHash(validTransactionsList); // credible root hash
 
-        LinkedHashMap<byte[], Transaction> transactionsToTest = badTransactionsList; // transaction on 2º position modified
+        LinkedHashMap<ByteWrapper, Transaction> transactionsToTest = badTransactionsList; // transaction on 2º position modified
 
         // 2º position its a modified transaction, so the result of that root hash will be different from the previous one
         boolean b = mt.verifyTransaction(transactionsToTest, hash1, rootHash); // the second input means the transaction target

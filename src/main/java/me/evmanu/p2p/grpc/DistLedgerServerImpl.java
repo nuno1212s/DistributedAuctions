@@ -57,7 +57,7 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
         final var kClosestNodes = this.node.findKClosestNodes(request.getTargetID().toByteArray());
 
         for (NodeTriple kClosestNode : kClosestNodes) {
-            final var node = FoundNode.newBuilder().setNodeID(ByteString.copyFrom(kClosestNode.getNodeID()))
+            final var node = FoundNode.newBuilder().setNodeID(ByteString.copyFrom(kClosestNode.getNodeID().getBytes()))
                     .build();
 
             responseObserver.onNext(node);
@@ -82,7 +82,7 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
 
                 FoundValue foundValue = FoundValue.newBuilder()
                         .setValueKind(StoreKind.NODES)
-                        .setKey(ByteString.copyFrom(closestNode.getNodeID())).build();
+                        .setKey(ByteString.copyFrom(closestNode.getNodeID().getBytes())).build();
 
                 responseObserver.onNext(foundValue);
             }
@@ -101,11 +101,14 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
     @Override
     public void requestCRC(CRCRequest request, StreamObserver<CRCResponse> responseObserver) {
 
+        System.out.println("RECEIVED CRC Request " + request);
+
         long challenge = request.getChallenge();
 
         long result = CRChallenge.solveCRChallenge(challenge);
 
-        responseObserver.onNext(CRCResponse.newBuilder().setChallenge(challenge)
+        responseObserver.onNext(CRCResponse.newBuilder()
+                .setChallenge(challenge)
                 .setResponse(result)
                 .setChallengedNodeID(ByteString.copyFrom(node.getNodeID()))
                 .build());

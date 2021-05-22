@@ -6,6 +6,7 @@ import me.evmanu.Standards;
 import me.evmanu.daos.Hashable;
 import me.evmanu.daos.transactions.MerkleVerifiableTransaction;
 import me.evmanu.daos.transactions.Transaction;
+import me.evmanu.util.ByteWrapper;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -27,7 +28,7 @@ public abstract class Block implements Hashable {
      *
      * This uses a LinkedHashMap so we maintain ordering for the blocks
      */
-    protected final LinkedHashMap<byte[], Transaction> transactions;
+    protected final LinkedHashMap<ByteWrapper, Transaction> transactions;
 
     /**
      * Verify that the previous block hash matches
@@ -69,11 +70,11 @@ public abstract class Block implements Hashable {
     }
 
     public final Transaction getTransactionByID(byte[] txID) {
-        return this.transactions.get(txID);
+        return this.transactions.get(new ByteWrapper(txID));
     }
 
     public final boolean verifyTransactionIsInBlock(byte[] txID) {
-        return this.transactions.containsKey(txID);
+        return this.transactions.containsKey(new ByteWrapper(txID));
     }
 
     public final boolean verifyTransactionIsInBlock(Transaction transaction) {

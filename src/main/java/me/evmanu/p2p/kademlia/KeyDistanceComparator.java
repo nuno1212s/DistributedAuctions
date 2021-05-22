@@ -11,14 +11,17 @@ public class KeyDistanceComparator implements Comparator<NodeTriple> {
     private final BigInteger centerNodeID;
 
     public KeyDistanceComparator(byte[] nodeID) {
-
         this.centerNodeID = new BigInteger(1, nodeID);
     }
 
     @Override
     public int compare(NodeTriple o1, NodeTriple o2) {
-        BigInteger o1Node = new BigInteger(1, o1.getNodeID()),
-                o2Node = new BigInteger(1, o2.getNodeID());
+        if (o1.getNodeID().equals(o2.getNodeID())) {
+            return 0;
+        }
+
+        BigInteger o1Node = new BigInteger(1, o1.getNodeID().getBytes()),
+                o2Node = new BigInteger(1, o2.getNodeID().getBytes());
 
         return P2PStandards.nodeDistance(o1Node, centerNodeID).compareTo(P2PStandards.nodeDistance(o2Node, centerNodeID));
     }

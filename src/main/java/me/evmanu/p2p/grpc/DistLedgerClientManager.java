@@ -8,13 +8,13 @@ import me.evmanu.*;
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
 import me.evmanu.p2p.kademlia.StoredKeyMetadata;
-import me.evmanu.p2p.operations.*;
+import me.evmanu.p2p.nodeoperations.*;
+import me.evmanu.util.ByteWrapper;
 import me.evmanu.util.Pair;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +29,7 @@ public class DistLedgerClientManager {
         return instance;
     }
 
-    private final Map<byte[], ManagedChannel> cachedChannels;
+    private final Map<ByteWrapper, ManagedChannel> cachedChannels;
 
     public DistLedgerClientManager() {
         instance = this;
@@ -37,7 +37,8 @@ public class DistLedgerClientManager {
         this.cachedChannels = new ConcurrentHashMap<>();
     }
 
-    private ManagedChannel getCachedChannel(byte[] nodeID) {
+    private ManagedChannel getCachedChannel(ByteWrapper nodeID) {
+
         if (cachedChannels.containsKey(nodeID)) {
             final var managedChannel = this.cachedChannels.get(nodeID);
 
@@ -65,7 +66,7 @@ public class DistLedgerClientManager {
     }
 
     private void closeConnection(byte[] nodeID) {
-        ManagedChannel managedChannel = this.cachedChannels.remove(nodeID);
+        ManagedChannel managedChannel = this.cachedChannels.remove(new ByteWrapper(nodeID));
 
         if (managedChannel.isTerminated() || managedChannel.isShutdown()) {
 
@@ -217,6 +218,9 @@ public class DistLedgerClientManager {
         try {
             destinationStub = this.newStub(destination);
         } catch (IOException e) {
+
+            e.printStackTrace();
+
             sender.handleFailedNodePing(destination);
 
             return;
@@ -236,6 +240,7 @@ public class DistLedgerClientManager {
 
             @Override
             public void onError(Throwable t) {
+                t.printStackTrace();
                 sender.handleFailedNodePing(destination);
             }
 
