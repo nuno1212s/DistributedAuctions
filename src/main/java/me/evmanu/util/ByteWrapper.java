@@ -5,7 +5,7 @@ import lombok.Getter;
 import java.util.Arrays;
 
 @Getter
-public class ByteWrapper {
+public class ByteWrapper implements Comparable<ByteWrapper> {
 
     private final byte[] bytes;
 
@@ -23,6 +23,11 @@ public class ByteWrapper {
         } else
             return rhs instanceof ByteWrapper
                     && Arrays.equals(bytes, ((ByteWrapper) rhs).bytes);
+    }
+
+    @Override
+    public int compareTo(ByteWrapper wrapper) {
+        return Arrays.compare(this.bytes, wrapper.bytes);
     }
 
     @Override

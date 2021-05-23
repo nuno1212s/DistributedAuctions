@@ -19,6 +19,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class DistLedgerClientManager {
@@ -73,7 +74,12 @@ public class DistLedgerClientManager {
             return;
         }
 
-        managedChannel.shutdown();
+        managedChannel.shutdownNow();
+        try {
+            managedChannel.awaitTermination(1, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     private ManagedChannel setupConnection(NodeTriple nodeTriple) throws IOException {
@@ -85,6 +91,9 @@ public class DistLedgerClientManager {
             cacheConnection(nodeTriple, createdConnection);
 
             return createdConnection;
+        } else if (!cachedChannel.isTerminated() && !cachedChannel.isShutdown()) {
+            System.out.println("Cached channel");
+            return cachedChannel;
         }
 
         throw new IOException("Failed to connect to the IP: " + nodeTriple.getIpAddress().getHostAddress());
@@ -115,6 +124,7 @@ public class DistLedgerClientManager {
 
                         @Override
                         public void onError(Throwable t) {
+                            t.printStackTrace();
                             node.handleFailedNodePing(triple);
                         }
 
@@ -123,6 +133,7 @@ public class DistLedgerClientManager {
                         }
                     });
         } catch (IOException e) {
+            e.printStackTrace();
             node.handleFailedNodePing(triple);
         }
 
@@ -161,6 +172,7 @@ public class DistLedgerClientManager {
 
                 @Override
                 public void onError(Throwable t) {
+                    t.printStackTrace();
                     operation.handleFindNodeFailed(target);
                 }
 
@@ -170,6 +182,7 @@ public class DistLedgerClientManager {
                 }
             });
         } catch (IOException e) {
+            e.printStackTrace();
             operation.handleFindNodeFailed(target);
         }
     }
@@ -182,6 +195,7 @@ public class DistLedgerClientManager {
         try {
             destinationStub = this.newStub(destination);
         } catch (IOException e) {
+            e.printStackTrace();
             storeOperation.handleFailedStore(destination);
 
             return;
@@ -201,6 +215,7 @@ public class DistLedgerClientManager {
 
             @Override
             public void onError(Throwable t) {
+                t.printStackTrace();
                 storeOperation.handleFailedStore(destination);
             }
 
@@ -288,6 +303,7 @@ public class DistLedgerClientManager {
 
                 @Override
                 public void onError(Throwable t) {
+                    t.printStackTrace();
                     lookupOperation.nodeFailedLookup(destination);
                 }
 
@@ -301,9 +317,46 @@ public class DistLedgerClientManager {
                 }
             });
         } catch (IOException e) {
+            e.printStackTrace();
             lookupOperation.nodeFailedLookup(destination);
         }
 
+    }
+
+    public void performBroadcastForNode(P2PNode node, BroadcastMessageOperation operation, NodeTriple destination,
+                                        int height, byte[] messageID, byte[] messageContent) {
+
+        try {
+            P2PServerGrpc.P2PServerStub destinationStub = newStub(destination);
+
+            Broadcast bcast = Broadcast.newBuilder()
+                    .setRequestingNodeID(ByteString.copyFrom(node.getNodeID()))
+                    .setRequestingNodePort(node.getNodePublicPort())
+                    .setHeight(height)
+                    .setMessageID(ByteString.copyFrom(messageID))
+                    .setMessageContent(ByteString.copyFrom(messageContent))
+                    .build();
+
+            destinationStub.broadcastMessage(bcast, new StreamObserver<>() {
+                @Override
+                public void onNext(BroadcastResponse value) { }
+
+                @Override
+                public void onError(Throwable t) {
+                    t.printStackTrace();
+                    operation.handleNodeFailedDelivery(destination);
+                }
+
+                @Override
+                public void onCompleted() {
+                    operation.handleNodeResponded(destination);
+                }
+            });
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            operation.handleNodeFailedDelivery(destination);
+        }
     }
 
 }

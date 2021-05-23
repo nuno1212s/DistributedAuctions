@@ -4,29 +4,43 @@ import lombok.Getter;
 import me.evmanu.p2p.grpc.DistLedgerClientManager;
 import me.evmanu.p2p.nodeoperations.*;
 import me.evmanu.util.ByteWrapper;
+import me.evmanu.util.Hex;
 import me.evmanu.util.Pair;
+import org.w3c.dom.Node;
 
 import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.ReentrantLock;
 
-@Getter
 public class P2PNode {
 
     private static final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
+    @Getter
     private final byte[] nodeID;
 
+    @Getter
     private final int nodePublicPort;
 
+    @Getter
     private final DistLedgerClientManager clientManager;
 
+    @Getter
     private final ArrayList<ConcurrentLinkedDeque<NodeTriple>> kBuckets;
 
     private final ArrayList<Long> lastKBucketUpdate;
 
+    /**
+     * Lock each bucket individually
+     * Each bucket still uses a concurrent linked deque so we can still iterate through the nodes in the
+     * bucket while it's being changed, but we can only perform one change at once.
+     */
+    private final ArrayList<ReentrantLock> kBucketWriteLocks;
+
     private final Map<Integer, LinkedList<NodeTriple>> nodeWaitList;
 
+    @Getter
     private final Map<ByteWrapper, StoredKeyMetadata> storedValues, publishedValues;
 
     private final Map<ByteWrapper, Pair<Long, Long>> storedCRCs;
@@ -34,6 +48,8 @@ public class P2PNode {
     private final Map<ByteWrapper, Long> requestedCRCs;
 
     private final Map<ByteWrapper, Pair<Integer, Integer>> interactionsPerPeer;
+
+    private final Set<ByteWrapper> seenMessages;
 
     private final List<Operation> onGoingOperations;
 
@@ -44,12 +60,14 @@ public class P2PNode {
         this.nodePublicPort = port;
         this.kBuckets = new ArrayList<>(P2PStandards.I);
         this.lastKBucketUpdate = new ArrayList<>(P2PStandards.I);
+        this.kBucketWriteLocks = new ArrayList<>(P2PStandards.I);
         this.nodeWaitList = new ConcurrentSkipListMap<>();
-        this.storedValues = new ConcurrentHashMap<>();
-        this.publishedValues = new ConcurrentHashMap<>();
-        this.storedCRCs = new ConcurrentHashMap<>();
-        this.requestedCRCs = new ConcurrentHashMap<>();
-        this.interactionsPerPeer = new ConcurrentHashMap<>();
+        this.storedValues = new ConcurrentSkipListMap<>();
+        this.publishedValues = new ConcurrentSkipListMap<>();
+        this.storedCRCs = new ConcurrentSkipListMap<>();
+        this.requestedCRCs = new ConcurrentSkipListMap<>();
+        this.interactionsPerPeer = new ConcurrentSkipListMap<>();
+        this.seenMessages = new ConcurrentSkipListSet<>();
         this.onGoingOperations = Collections.synchronizedList(new LinkedList<>());
 
         this.lastRepublish = System.currentTimeMillis();
@@ -57,6 +75,7 @@ public class P2PNode {
 
         for (int i = 0; i < P2PStandards.I; i++) {
             kBuckets.add(new ConcurrentLinkedDeque<>());
+            kBucketWriteLocks.add(new ReentrantLock());
             lastKBucketUpdate.add(System.currentTimeMillis());
         }
 
@@ -95,7 +114,7 @@ public class P2PNode {
         }).execute();
     }
 
-    public void pingHeadOfKBucket(int kBucket) {
+    private void pingHeadOfKBucket(int kBucket) {
         ConcurrentLinkedDeque<NodeTriple> nodeTriples = this.kBuckets.get(kBucket);
 
         NodeTriple nodeTriple = nodeTriples.peekFirst();
@@ -161,36 +180,44 @@ public class P2PNode {
 
         final int kBucketFor = P2PStandards.getKBucketFor(this.nodeID, node.getNodeID().getBytes());
 
-        final var bucketNodes = kBuckets.get(kBucketFor);
+        ReentrantLock lock = kBucketWriteLocks.get(kBucketFor);
 
-        final var iterator = bucketNodes.iterator();
+        try {
+            lock.lock();
 
-        boolean isPresent = false;
+            final var bucketNodes = kBuckets.get(kBucketFor);
 
-        System.out.println("Failed to ping the node " + node);
+            final var iterator = bucketNodes.iterator();
 
-        //Remove the node from the K Bucket
-        while (iterator.hasNext()) {
-            final var currentNode = iterator.next();
+            boolean isPresent = false;
 
-            if (node.getNodeID().equals(currentNode.getNodeID())) {
-                isPresent = true;
-                break;
+            System.out.println("Failed to ping the node " + node);
+
+            //Remove the node from the K Bucket
+            while (iterator.hasNext()) {
+                final var currentNode = iterator.next();
+
+                if (node.getNodeID().equals(currentNode.getNodeID())) {
+                    isPresent = true;
+
+                    iterator.remove();
+                    break;
+                }
             }
-        }
 
-        if (isPresent) {
-            //Add the latest seen node to the bucket if the node was present and was removed.
-            popLatestSeenNodeInWaitingList(kBucketFor).ifPresent(bucketNodes::addLast);
+            if (isPresent) {
+                //Add the latest seen node to the bucket if the node was present and was removed.
+                popLatestSeenNodeInWaitingList(kBucketFor).ifPresent(bucketNodes::addLast);
 
-            bucketNodes.removeFirstOccurrence(node);
-
-            //Remove the work proof of this node as it is no longer online so it
-            //Might have been poisoned in the mean time
-            this.storedCRCs.remove(node.getNodeID());
-        } else {
-            //Remove the CRC request if the node is offline
-            this.requestedCRCs.remove(node.getNodeID());
+                //Remove the work proof of this node as it is no longer online so it
+                //Might have been poisoned in the mean time
+                this.storedCRCs.remove(node.getNodeID());
+            } else {
+                //Remove the CRC request if the node is offline
+                this.requestedCRCs.remove(node.getNodeID());
+            }
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -198,75 +225,88 @@ public class P2PNode {
 
         final int kBucketFor = P2PStandards.getKBucketFor(this.nodeID, seen.getNodeID().getBytes());
 
-        var nodeTriples = this.kBuckets.get(kBucketFor);
+        ReentrantLock lock = this.kBucketWriteLocks.get(kBucketFor);
 
-        if (nodeTriples == null) {
-            nodeTriples = new ConcurrentLinkedDeque<>();
-        }
+        try {
 
-        seen.setLastSeen(System.currentTimeMillis());
+            lock.lock();
 
-        System.out.println("Node " + seen + " belongs in bucket " + kBucketFor);
+            var nodeTriples = this.kBuckets.get(kBucketFor);
 
-        final var iterator = nodeTriples.iterator();
-
-        boolean alreadyPresent = false;
-
-        while (iterator.hasNext()) {
-            final var currentNode = iterator.next();
-
-            if (seen.getNodeID().equals(currentNode.getNodeID())) {
-
-                alreadyPresent = true;
-
-                break;
-            }
-        }
-
-        if (alreadyPresent) {
-            System.out.println("Node was already present in bucket, moving it to the back of the list");
-
-            //If the node was already present, move it to the tail of the list
-            nodeTriples.addLast(seen);
-
-            //Only remove the node after adding the previous, so we don't get any sort of concurrency
-            //Issues
-            nodeTriples.removeFirstOccurrence(seen);
-
-            //Discard of the oldest node in the waiting list, as the ping to the first one was successful
-            popOldestSeenNodeInWaitingList(kBucketFor);
-        } else {
-
-            //The node is not already present, so we request it to perform a CRC
-            //To accept this, send a challenge that requires computational work to the node to prevent sybil attacks
-            //Maybe send a Large prime number N for it to factorize? Or maybe send him a random number and he has
-            //To find a Proof of work with X zeroes to be able to join the network
-            if (!hasSolvedCRC(seen)) {
-
-                System.out.println("Node has not solved CRC. Sending it.");
-                requestCRCFromNode(seen);
-
-                return;
+            if (nodeTriples == null) {
+                nodeTriples = new ConcurrentLinkedDeque<>();
             }
 
-            if (nodeTriples.size() >= P2PStandards.K) {
+            seen.setLastSeen(System.currentTimeMillis());
 
-                //Ping the head of the list, wait for it's response.
-                //If it does not respond, remove it and concatenate this node into the last position of the array
-                //If it does respond, put it at the tail of the list and ignore this one
-                System.out.println("K bucket is full, appending to the wait list and pinging head");
-                appendWaitingNode(kBucketFor, seen);
+            System.out.println("Node " + seen + " belongs in bucket " + kBucketFor + " of " + Hex.toHexString(getNodeID()));
 
-                pingHeadOfKBucket(kBucketFor);
+            final var iterator = nodeTriples.iterator();
 
-            } else {
-                System.out.println("Added the node in the last position of the bucket.");
-                //The node is not present in the K bucket and the bucket is not empty, so add this node to the tail of the list
+            boolean alreadyPresent = false;
+
+            while (iterator.hasNext()) {
+                final var currentNode = iterator.next();
+
+                if (seen.getNodeID().equals(currentNode.getNodeID())) {
+
+                    alreadyPresent = true;
+
+                    iterator.remove();
+
+                    break;
+                }
+            }
+
+            if (alreadyPresent) {
+                System.out.println("Node was already present in bucket, moving it to the back of the list");
+
+                //If the node was already present, move it to the tail of the list
                 nodeTriples.addLast(seen);
-            }
-        }
 
-        this.kBuckets.set(kBucketFor, nodeTriples);
+                //Only remove the node after adding the previous, so we don't get any sort of concurrency
+                //Issues
+                //Removed because we are now using locks for each bucket
+//            nodeTriples.removeFirstOccurrence(seen);
+
+                //Discard of the oldest node in the waiting list, as the ping to the first one was successful
+                popOldestSeenNodeInWaitingList(kBucketFor);
+            } else {
+
+                //The node is not already present, so we request it to perform a CRC
+                //To accept this, send a challenge that requires computational work to the node to prevent sybil attacks
+                //Maybe send a Large prime number N for it to factorize? Or maybe send him a random number and he has
+                //To find a Proof of work with X zeroes to be able to join the network
+                if (!hasSolvedCRC(seen)) {
+
+                    System.out.println("Node has not solved CRC. Sending it.");
+                    requestCRCFromNode(seen);
+
+                    return;
+                }
+
+                if (nodeTriples.size() >= P2PStandards.K) {
+
+                    //Ping the head of the list, wait for it's response.
+                    //If it does not respond, remove it and concatenate this node into the last position of the array
+                    //If it does respond, put it at the tail of the list and ignore this one
+                    System.out.println("K bucket is full, appending to the wait list and pinging head");
+
+                    appendWaitingNode(kBucketFor, seen);
+
+                    pingHeadOfKBucket(kBucketFor);
+
+                } else {
+                    System.out.println("Added the node in the last position of the bucket.");
+                    //The node is not present in the K bucket and the bucket is not empty, so add this node to the tail of the list
+                    nodeTriples.addLast(seen);
+                }
+            }
+
+            this.kBuckets.set(kBucketFor, nodeTriples);
+        } finally {
+            lock.unlock();
+        }
     }
 
     public List<NodeTriple> findKClosestNodes(byte[] nodeID) {
@@ -335,7 +375,7 @@ public class P2PNode {
         //We start looking at the k bucket that the node ID should be contained in,
         //As that is the bucket that contains the nodes that are closest to it
         //Then we start expanding equally to the left and right buckets
-        //Until we have filled the node set.
+        //Until we have filled the node set, or we have gone through all buckets.
 
         for (int i = 0; i < P2PStandards.I; i++) {
 
@@ -354,17 +394,31 @@ public class P2PNode {
         return new ArrayList<>(sortedNodes);
     }
 
-    public List<NodeTriple> collectAllNodesInRoutingTable() {
+    /**
+     * Collect all of the nodes in our routing table
+     * @return
+     */
+    public List<Pair<NodeTriple, Integer>> collectAllNodesInRoutingTable() {
 
-        List<NodeTriple> nodes = new LinkedList<>();
+        List<Pair<NodeTriple, Integer>> nodes = new LinkedList<>();
 
-        for (ConcurrentLinkedDeque<NodeTriple> kBucket : this.kBuckets) {
-            nodes.addAll(kBucket);
+        for (int i = 0; i < this.kBuckets.size(); i++) {
+            ConcurrentLinkedDeque<NodeTriple> kBucket = this.kBuckets.get(i);
+
+            for (NodeTriple nodeTriple : kBucket) {
+                nodes.add(Pair.of(nodeTriple, i));
+            }
         }
 
         return nodes;
     }
 
+    /**
+     * Store a value in our node content
+     * @param originNodeID
+     * @param ID
+     * @param value
+     */
     public void storeValue(byte[] originNodeID, byte[] ID, byte[] value) {
 
         ByteWrapper wrapped_ID = new ByteWrapper(ID);
@@ -426,16 +480,33 @@ public class P2PNode {
         return this.interactionsPerPeer.getOrDefault(new ByteWrapper(nodeID), Pair.of(0, 0));
     }
 
+    /**
+     * Register that an operation is ongoing
+     * @param operation
+     */
     public void registerOngoingOperation(Operation operation) {
         this.onGoingOperations.add(operation);
     }
 
+    /**
+     * Register that an operation is done
+     * @param operation
+     */
     public void registerOperationDone(Operation operation) {
         this.onGoingOperations.remove(operation);
     }
 
     public void waitForAllOperations() {
         while (!this.onGoingOperations.isEmpty()) { }
+    }
+
+    /**
+     * Register that the node has seen a message
+     * @param messageID
+     * @return True if the message has never been seen, false if it has
+     */
+    public boolean registerSeenMessage(byte[] messageID) {
+        return this.seenMessages.add(new ByteWrapper(messageID));
     }
 
     /**

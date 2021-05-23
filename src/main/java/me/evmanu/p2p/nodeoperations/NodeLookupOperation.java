@@ -157,8 +157,6 @@ public class NodeLookupOperation implements Operation {
 
         List<NodeTriple> nodes = new LinkedList<>();
 
-        System.out.println(currentOperations);
-
         /*
         Because this map is sorted by distance to lookupID, we know that the first nodes have the lowest distance from
         The Lookup ID

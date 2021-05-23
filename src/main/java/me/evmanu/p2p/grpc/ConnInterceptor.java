@@ -1,19 +1,12 @@
 package me.evmanu.p2p.grpc;
 
 import io.grpc.*;
-import me.evmanu.CRCRequest;
-import me.evmanu.Ping;
-import me.evmanu.Store;
-import me.evmanu.TargetID;
-import me.evmanu.p2p.kademlia.CRChallenge;
+import me.evmanu.*;
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
-import me.evmanu.util.Hex;
 
-import java.lang.annotation.Target;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 
 /**
  * Handle updating our k buckets when we receive a request from another kademlia node.
@@ -55,7 +48,12 @@ public class ConnInterceptor implements ServerInterceptor {
                 } else if (message instanceof CRCRequest) {
                     nodeID = ((CRCRequest) message).getChallengingNodeID().toByteArray();
                     port = ((CRCRequest) message).getChallengingNodePort();
-                } else {
+                } else if (message instanceof Broadcast) {
+
+                    nodeID = ((Broadcast) message).getRequestingNodeID().toByteArray();
+                    port = ((Broadcast) message).getRequestingNodePort();
+
+                }else {
                     super.onMessage(message);
 
                     return;

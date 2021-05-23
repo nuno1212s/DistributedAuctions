@@ -20,8 +20,9 @@ public class P2PStandards {
      * I -> The amount of bits in the key
      * K -> The amount of nodes to store in each K bucket
      * ALPHA -> The parallelization in the network calls
+     * B_K -> The amount of nodes to broadcast to for each height
      */
-    public static final int I = 160, K = 20, ALPHA = 3;
+    public static final int I = 160, K = 20, ALPHA = 3, B_K = 3;
 
     /**
      * T_EXPIRE -> The time after which a key/value pair expires; this is a time-to-live (TTL) from the original

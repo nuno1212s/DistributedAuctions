@@ -1,6 +1,7 @@
 package me.evmanu.p2p.grpc;
 
 import com.google.protobuf.ByteString;
+import io.grpc.Context;
 import io.grpc.ServerCall;
 import io.grpc.stub.StreamObserver;
 import lombok.AccessLevel;
@@ -9,6 +10,7 @@ import me.evmanu.*;
 import me.evmanu.p2p.kademlia.CRChallenge;
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
+import me.evmanu.p2p.nodeoperations.BroadcastMessageOperation;
 import me.evmanu.util.Hex;
 
 import java.util.List;
@@ -58,7 +60,11 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
         final var kClosestNodes = this.node.findKClosestNodes(request.getTargetID().toByteArray());
 
         for (NodeTriple kClosestNode : kClosestNodes) {
-            final var node = FoundNode.newBuilder().setNodeID(ByteString.copyFrom(kClosestNode.getNodeID().getBytes()))
+            final var node = FoundNode.newBuilder()
+                    .setNodeAddress(kClosestNode.getIpAddress().getHostAddress())
+                    .setPort(kClosestNode.getUdpPort())
+                    .setLastSeen(kClosestNode.getLastSeen())
+                    .setNodeID(ByteString.copyFrom(kClosestNode.getNodeID().getBytes()))
                     .build();
 
             responseObserver.onNext(node);
@@ -115,6 +121,35 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
                 .setChallengedNodeID(ByteString.copyFrom(node.getNodeID()))
                 .build());
 
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void broadcastMessage(Broadcast request, StreamObserver<BroadcastResponse> responseObserver) {
+
+        byte[] messageID = request.getMessageID().toByteArray();
+
+        BroadcastResponse.Builder builder = BroadcastResponse.newBuilder();
+
+        if (this.node.registerSeenMessage(messageID)) {
+
+            byte[] messageContent = request.getMessageContent().toByteArray();
+
+            //Like in ConnInterceptor, fork the context so we can send messages while also receiving them
+            Context.current().fork().run(() ->
+                    new BroadcastMessageOperation(this.node, request.getHeight(), messageID,
+                            messageContent).execute());
+
+
+            System.out.println("Received new broadcast message, node " + Hex.toHexString(this.node.getNodeID()) +
+                    " with content " + Hex.toHexString(messageContent));
+
+            builder.setSeen(false);
+        } else {
+            builder.setSeen(true);
+        }
+
+        responseObserver.onNext(builder.build());
         responseObserver.onCompleted();
     }
 }
