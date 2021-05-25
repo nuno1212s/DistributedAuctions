@@ -75,7 +75,7 @@ public class ContentLookupOperation implements Operation {
 
     }
 
-    private boolean ask() {
+    private synchronized boolean ask() {
 
         if (this.isContentFound.get()) {
             return true;
@@ -126,13 +126,13 @@ public class ContentLookupOperation implements Operation {
 
         setFinished(true);
 
-        this.isContentFound.set(true);
+        if (this.isContentFound.compareAndSet(false, true)) {
+            this.resultConsumer.accept(this.foundValue);
+        }
 
         this.pending_requests.remove(triple);
 
         this.centerNode.handleSeenNode(triple);
-
-        this.resultConsumer.accept(this.foundValue);
     }
 
     public void nodeReturnedMoreNodes(NodeTriple node, Collection<NodeTriple> nodeTriples) {
@@ -145,6 +145,7 @@ public class ContentLookupOperation implements Operation {
             this.storedNodes.putIfAbsent(nodeTriple, NodeOperationState.NOT_ASKED);
         }
 
+        iterate();
     }
 
     public void nodeFailedLookup(NodeTriple triple) {
@@ -153,6 +154,8 @@ public class ContentLookupOperation implements Operation {
         this.pending_requests.remove(triple);
 
         this.centerNode.handleFailedNodePing(triple);
+
+        iterate();
     }
 
     public List<NodeTriple> closestKNodesWithState(NodeOperationState operationState) {

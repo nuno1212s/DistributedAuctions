@@ -2,26 +2,22 @@ import me.evmanu.Standards;
 import me.evmanu.daos.blocks.BlockChain;
 import me.evmanu.daos.blocks.blockbuilders.BlockBuilder;
 import me.evmanu.daos.blocks.blockbuilders.PoWBlockBuilder;
+import me.evmanu.daos.blocks.blockchains.PoWBlockChain;
 import me.evmanu.daos.transactions.ScriptPubKey;
 import me.evmanu.daos.transactions.ScriptSignature;
 import me.evmanu.daos.transactions.Transaction;
-import me.evmanu.p2p.grpc.DistLedgerServer;
-import me.evmanu.p2p.kademlia.NodeTriple;
-import me.evmanu.p2p.kademlia.P2PNode;
+import me.evmanu.daos.transactions.TransactionType;
 import me.evmanu.util.Pair;
 import org.junit.Ignore;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.net.InetAddress;
 import java.security.KeyPair;
 import java.security.PublicKey;
 import java.util.ArrayList;
-import java.util.Arrays;
 
 public class BlockChainTests {
 
-    private final BlockChain blockChain = new BlockChain(0, (short) 0x01, new ArrayList<>());
+    private final BlockChain blockChain = new PoWBlockChain(0, (short) 0x01, new ArrayList<>());
 
     private Transaction initGenesisTransactionFor(long blockNum, float amountPerOutput, KeyPair... outputs) {
 
@@ -37,7 +33,7 @@ public class BlockChainTests {
             output[i] = new ScriptPubKey(Standards.calculateHashedPublicKeyFrom(outputI.getPublic()), amountPerOutput);
         }
 
-        return new Transaction(blockNum, blockChain.getVersion(), new ScriptSignature[0], output);
+        return new Transaction(blockNum, blockChain.getVersion(), TransactionType.TRANSACTION, new ScriptSignature[0], output);
     }
 
     private Transaction initTransactionWithPreviousOutputs(BlockBuilder currentBlock,
@@ -66,7 +62,7 @@ public class BlockChainTests {
 
         }
 
-        return new Transaction(currentBlock.getBlockNumber(), currentBlock.getVersion(), inputs, newOutputs);
+        return new Transaction(currentBlock.getBlockNumber(), currentBlock.getVersion(), TransactionType.TRANSACTION, inputs, newOutputs);
     }
 
     @Test
@@ -101,6 +97,7 @@ public class BlockChainTests {
             inputs2[0] = input1;
 
             Transaction transaction1 = new Transaction(currentBlock.getBlockNumber(), blockChain.getVersion(),
+                    TransactionType.TRANSACTION,
                     inputs2, outputs2);
 
             System.out.println(transaction1);
@@ -146,6 +143,7 @@ public class BlockChainTests {
             inputs2[0] = ScriptSignature.fromOutput(transaction, 0, keyPair, outputs2);
 
             Transaction transaction2 = new Transaction(currentBlock.getBlockNumber(), blockChain.getVersion(),
+                    TransactionType.TRANSACTION,
                     inputs2, outputs2);
 
             System.out.println("Transaction 2: " + transaction2);
@@ -165,6 +163,7 @@ public class BlockChainTests {
             inputs3[0] = ScriptSignature.fromOutput(transaction, 0, keyPair, outputs3);
 
             Transaction transaction3 = new Transaction(currentBlock.getBlockNumber(), blockChain.getVersion(),
+                    TransactionType.TRANSACTION,
                     inputs3, outputs3);
 
             System.out.println("Transaction 3: " + transaction3);
@@ -201,7 +200,8 @@ public class BlockChainTests {
         try {
             inputs[0] = ScriptSignature.fromOutput(transaction, 0, keyPair2, outputs);
 
-            var wrongTransaction = new Transaction(currentBlock.getBlockNumber(), blockChain.getVersion(), inputs, outputs);
+            var wrongTransaction = new Transaction(currentBlock.getBlockNumber(), blockChain.getVersion(),
+                    TransactionType.TRANSACTION, inputs, outputs);
 
             assert !blockChain.verifyTransaction(wrongTransaction);
 

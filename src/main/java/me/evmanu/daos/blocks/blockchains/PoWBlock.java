@@ -1,6 +1,10 @@
-package me.evmanu.daos.blocks;
+package me.evmanu.daos.blocks.blockchains;
 
 import lombok.Getter;
+import me.evmanu.daos.blocks.Block;
+import me.evmanu.daos.blocks.BlockChain;
+import me.evmanu.daos.blocks.BlockChainStandards;
+import me.evmanu.daos.blocks.BlockHeader;
 import me.evmanu.daos.transactions.Transaction;
 import me.evmanu.util.ByteHelper;
 import me.evmanu.util.ByteWrapper;
@@ -15,9 +19,6 @@ import java.util.LinkedHashMap;
 @Getter
 public class PoWBlock extends Block {
 
-    //TODO: Mara, usa esta variável para ver os zeros que são precisos
-    public static final int ZEROS_REQUIRED = 1;
-
     private final BigInteger workProof;
 
     public PoWBlock(BlockHeader header, LinkedHashMap<ByteWrapper, Transaction> transactions,
@@ -28,11 +29,11 @@ public class PoWBlock extends Block {
     }
 
     @Override
-    public boolean isValid() {
+    public boolean isValid(BlockChain chain) {
 
         final var blockHash = getHeader().getBlockHash();
 
-        return ByteHelper.hasFirstBitsSetToZero(blockHash, ZEROS_REQUIRED);
+        return ByteHelper.hasFirstBitsSetToZero(blockHash, BlockChainStandards.ZEROS_REQUIRED);
     }
 
     @Override

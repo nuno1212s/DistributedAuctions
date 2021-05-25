@@ -4,12 +4,15 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import me.evmanu.Standards;
 import me.evmanu.daos.Hashable;
+import me.evmanu.daos.Signable;
 import me.evmanu.daos.transactions.MerkleVerifiableTransaction;
 import me.evmanu.daos.transactions.Transaction;
 import me.evmanu.util.ByteWrapper;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 
@@ -19,13 +22,13 @@ import java.util.LinkedHashMap;
  */
 @AllArgsConstructor
 @Getter
-public abstract class Block implements Hashable {
+public abstract class Block implements Hashable, Signable {
 
     protected final BlockHeader header;
 
     /**
      * All the transactions in the block, indexed by their transaction ID.
-     *
+     * <p>
      * This uses a LinkedHashMap so we maintain ordering for the blocks
      */
     protected final LinkedHashMap<ByteWrapper, Transaction> transactions;
@@ -33,10 +36,11 @@ public abstract class Block implements Hashable {
     /**
      * Verify that the previous block hash matches
      * The hash of the previous block in the blockchain
+     *
      * @param previousBlock
      * @return
      */
-    protected final boolean verifyPreviousBlockHash(Block previousBlock) {
+    public final boolean verifyPreviousBlockHash(Block previousBlock) {
         if (previousBlock == null) {
             return this.getHeader().getPreviousBlockHash().length == 0;
         }
@@ -45,15 +49,16 @@ public abstract class Block implements Hashable {
                 previousBlock.getHeader().getBlockHash());
     }
 
-    protected final boolean verifyMerkleRoot() {
+    public final boolean verifyMerkleRoot() {
         return true;
     }
 
     /**
      * Verify that the block hash of this block is correct
+     *
      * @return
      */
-    protected final boolean verifyBlockID() {
+    public final boolean verifyBlockID() {
 
         final var digest = Standards.getDigestInstance();
 
@@ -92,19 +97,19 @@ public abstract class Block implements Hashable {
 
         var buffer = ByteBuffer.allocate(Long.BYTES);
 
-        hash.update(buffer.putLong(header.getBlockNumber()));
+        hash.update(buffer.putLong(header.getBlockNumber()).array());
 
         buffer.clear();
 
         //TODO: Does this even work? The memory is 8 bytes but I'm only filling up 2. Does it self adjust?
         //Is this world real?
         buffer.putShort(header.getVersion());
-        hash.update(buffer);
+        hash.update(buffer.array());
 
         buffer.clear();
         buffer.putLong(header.getTimeGenerated());
 
-        hash.update(buffer);
+        hash.update(buffer.array());
 
         hash.update(header.getPreviousBlockHash());
 
@@ -115,7 +120,44 @@ public abstract class Block implements Hashable {
         sub_addToHash(hash);
     }
 
-    public abstract boolean isValid();
+    @Override
+    public void addToSignature(Signature signature) {
+
+        var buffer = ByteBuffer.allocate(Long.BYTES);
+
+        try {
+            signature.update(buffer.putLong(header.getBlockNumber()).array());
+
+            buffer.clear();
+
+            //TODO: Does this even work? The memory is 8 bytes but I'm only filling up 2. Does it self adjust?
+            //Is this world real?
+            buffer.putShort(header.getVersion());
+            signature.update(buffer.array());
+
+            buffer.clear();
+            buffer.putLong(header.getTimeGenerated());
+
+            signature.update(buffer.array());
+
+            signature.update(header.getPreviousBlockHash());
+
+            signature.update(header.getMerkleRoot());
+
+            transactions.forEach((txID, transaction) -> transaction.addToSignature(signature));
+        } catch (SignatureException e) {
+
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Check if this block is valid, according to a certain block chain.
+     *
+     * @param chain
+     * @return
+     */
+    public abstract boolean isValid(BlockChain chain);
 
     /**
      * Instead of allowing overloads to the block hash, making this method always be executed after we finish adding the
@@ -124,7 +166,6 @@ public abstract class Block implements Hashable {
      * @param hash
      */
     protected abstract void sub_addToHash(MessageDigest hash);
-
 
 
 }

@@ -4,10 +4,13 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import me.evmanu.daos.Hashable;
+import me.evmanu.daos.Signable;
 import me.evmanu.util.Hex;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.util.Arrays;
 
 @Getter
@@ -15,7 +18,7 @@ import java.util.Arrays;
 /*
  * This is part of the P2PKH (Pay To PubKey Hash) protocol
  */
-public class ScriptPubKey implements Hashable {
+public class ScriptPubKey implements Hashable, Signable {
 
     private final byte[] hashedPubKey;
 
@@ -32,6 +35,22 @@ public class ScriptPubKey implements Hashable {
         buffer.putFloat(amount);
 
         digest.update(buffer.array());
+    }
+
+    @Override
+    public void addToSignature(Signature signature) {
+        try {
+            signature.update(this.hashedPubKey);
+
+            var buffer = ByteBuffer.allocate(Float.BYTES);
+
+            buffer.putFloat(amount);
+
+            signature.update(buffer.array());
+        } catch (SignatureException e) {
+            e.printStackTrace();
+        }
+
     }
 
     @Override

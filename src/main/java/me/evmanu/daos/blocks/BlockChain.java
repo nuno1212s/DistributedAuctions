@@ -7,14 +7,18 @@ import me.evmanu.daos.blocks.blockbuilders.PoWBlockBuilder;
 import me.evmanu.daos.transactions.ScriptPubKey;
 import me.evmanu.daos.transactions.ScriptSignature;
 import me.evmanu.daos.transactions.Transaction;
+import me.evmanu.daos.transactions.TransactionType;
 import me.evmanu.util.ByteWrapper;
 import me.evmanu.util.Hex;
 
 import java.util.*;
 
 @Getter
-public class BlockChain {
+public abstract class BlockChain {
 
+    /**
+     * The amount of blocks currently in this block chain.
+     */
     protected long blockCount;
 
     protected short version;
@@ -97,60 +101,15 @@ public class BlockChain {
         }
     }
 
-    //TODO: Add the verification of new blocks
-    public boolean verifyBlock(Block block) {
-
-        if (!block.verifyBlockID()) {
-            System.out.println("The block hash does not match the content of the block.");
-            return false;
-        }
-
-        if (!block.isValid()) {
-            System.out.println("The block does not have the correct pow/pos.");
-
-            return false;
-        }
-
-        var blockHeader = block.getHeader();
-
-        var blockNumber = blockHeader.getBlockNumber();
-
-        Block prevBlock = null;
-
-        if (blockNumber > 0) {
-
-            if (blockNumber <= getBlockCount()) {
-                System.out.println("This block chain is already further ahead of the block received.");
-
-                return false;
-            }
-
-            prevBlock = getBlockByNumber(blockNumber - 1);
-        }
-
-        if (!block.verifyPreviousBlockHash(prevBlock)) {
-            System.out.println("Previous block hash is not correct");
-            return false;
-        }
-
-        if (!block.verifyMerkleRoot()) {
-            return false;
-        }
-
-        LinkedHashMap<ByteWrapper, Transaction> verifiedTransactions = new LinkedHashMap<>();
-
-        //We want to gradually verify transactions, including the transactions that have already been
-        //Verified, so that there is no double spending possibility inside the block
-        for (Map.Entry<ByteWrapper, Transaction> transaction : block.getTransactions().entrySet()) {
-            if (!verifyTransaction(transaction.getValue(), block.getHeader().getBlockNumber(), verifiedTransactions)) {
-                return false;
-            }
-
-            verifiedTransactions.put(transaction.getKey(), transaction.getValue());
-        }
-
-        return true;
-    }
+    /**
+     * Verify a new incoming block against our own block chain, to assert that it's valid and can be integrated into our block
+     * chain.
+     * If this block is not deemed valid, we will broadcast a reject message for it.
+     *
+     * @param block
+     * @return
+     */
+    public abstract boolean verifyBlock(Block block);
 
     /**
      * Verify that a list of outputs have not been spent in a list of transactions (Usually a block)
@@ -367,6 +326,30 @@ public class BlockChain {
     }
 
     /**
+     * Check if a certain transaction is the mining reward of a given block
+     * @param block
+     * @param transaction
+     * @return
+     */
+    public boolean isMiningRewardTransaction(Block block, Transaction transaction) {
+
+        if (transaction.getType() != TransactionType.MINING_REWARD) return false;
+
+        Set<ByteWrapper> byteWrappers = block.getTransactions().keySet();
+
+        Optional<ByteWrapper> first = byteWrappers.stream().findFirst();
+
+        if (!first.isPresent()) return false;
+
+        //The transaction has to be the first transaction in the block
+        if (!Arrays.equals(transaction.getTxID(), first.get().getBytes())) {
+            return false;
+        }
+
+        return transaction.getInputs().length == 0 && transaction.getOutputs().length == 1;
+    }
+
+    /**
      * Check if this block chain can be forked at a certain block
      *
      * @param blockNumber
@@ -374,8 +357,9 @@ public class BlockChain {
      */
     public boolean canForkAt(long blockNumber) {
 
-        if (blockNumber < (this.blockCount - 4)) {
-            //We cannot fork if there are already 3 built blocks ahead of the block that we are trying to fork at
+        if (blockNumber < (this.blockCount - BlockChainStandards.MAX_FORK_DISTANCE)) {
+            //We cannot fork if there are already MAX_FORK_DISTANCE built blocks ahead of
+            //the block that we are trying to fork at
             return false;
         }
 
@@ -388,19 +372,6 @@ public class BlockChain {
      * @param blockForkNumber
      * @return
      */
-    public BlockChain fork(long blockForkNumber) {
-
-        List<Block> previousBlocks = new ArrayList<>((int) (blockForkNumber + 1));
-
-        for (long block = 0; block < blockForkNumber; block++) {
-            //We want to maintain the pointer to the previous blocks,
-            //Not copy them, as they are exactly the same, only the following blocks might
-            //Be different
-            previousBlocks.add(getBlockByNumber(block));
-        }
-
-        return new BlockChain(previousBlocks.size(), getVersion(), previousBlocks);
-
-    }
+    public abstract BlockChain fork(long blockForkNumber);
 
 }

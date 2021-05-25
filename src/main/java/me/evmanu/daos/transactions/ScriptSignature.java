@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import me.evmanu.Standards;
 import me.evmanu.daos.Hashable;
+import me.evmanu.daos.Signable;
 import me.evmanu.util.Hex;
 
 import java.nio.ByteBuffer;
@@ -18,7 +19,7 @@ import java.util.Arrays;
 /*
  *
  */
-public class ScriptSignature implements Hashable {
+public class ScriptSignature implements Hashable, Signable {
 
     //The block of the transaction
     private final long originatingBlock;
@@ -46,6 +47,27 @@ public class ScriptSignature implements Hashable {
         digest.update(buffer.array());
     }
 
+    @Override
+    public void addToSignature(Signature signature) {
+
+        var buffer = ByteBuffer.allocate(originatingTXID.length
+                + Long.BYTES +
+                + Integer.BYTES + publicKey.length + this.signature.length);
+
+
+        buffer.putLong(originatingBlock);
+        buffer.put(originatingTXID);
+        buffer.putInt(outputIndex);
+        buffer.put(publicKey);
+        buffer.put(this.signature);
+
+        try {
+            signature.update(buffer.array());
+        } catch (SignatureException e) {
+            e.printStackTrace();
+        }
+    }
+
     /**
      * Verifies that the output that originates this input exists in the transaction that it's supposed to, at the
      * index position that it's supposed to
@@ -67,6 +89,11 @@ public class ScriptSignature implements Hashable {
             //but never hurts to check, as the originatingTransaction might not be valid
             System.out.println("Size error.");
             return false;
+        } else if (this.outputIndex < 0) {
+            //This should only happen on Proof of stake withdraw transactions
+
+            
+
         }
 
         final KeyFactory keyFactoryInstance = Standards.getKeyFactoryInstance();

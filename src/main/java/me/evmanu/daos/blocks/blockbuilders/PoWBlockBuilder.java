@@ -4,14 +4,11 @@ import lombok.Setter;
 import me.evmanu.daos.Hashable;
 import me.evmanu.daos.blocks.Block;
 import me.evmanu.daos.blocks.BlockHeader;
-import me.evmanu.daos.blocks.PoWBlock;
+import me.evmanu.daos.blocks.blockchains.PoWBlock;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.util.LinkedHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class PoWBlockBuilder extends BlockBuilder {
 

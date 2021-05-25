@@ -3,10 +3,10 @@ package me.evmanu.miner;
 import lombok.Getter;
 import me.evmanu.daos.Hashable;
 import me.evmanu.daos.blocks.BlockChain;
+import me.evmanu.daos.blocks.BlockChainStandards;
 import me.evmanu.daos.blocks.blockbuilders.PoWBlockBuilder;
 import me.evmanu.util.ByteHelper;
 
-import static me.evmanu.daos.blocks.PoWBlock.ZEROS_REQUIRED;
 
 @Getter
 public class MiningWorker implements Runnable {
@@ -44,7 +44,7 @@ public class MiningWorker implements Runnable {
 
             byte[] hash = Hashable.calculateHashOf(individualInstance);
 
-            if (ByteHelper.hasFirstBitsSetToZero(hash, ZEROS_REQUIRED)) {
+            if (ByteHelper.hasFirstBitsSetToZero(hash, BlockChainStandards.ZEROS_REQUIRED)) {
                 miningManager.minedBlock(individualInstance);
                 break;
             }

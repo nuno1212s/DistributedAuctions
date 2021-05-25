@@ -23,12 +23,14 @@ public class StoreOperation implements StoreOperationBase {
 
         new NodeLookupOperation(center, this.metadata.getKey(), (nodes) -> {
 
+            System.out.println("Storing information in the nodes: " + nodes);
+
             for (NodeTriple destination : nodes) {
                 center.getClientManager().performStoreFor(center, this, destination, this.metadata);
             }
 
             setFinished(true);
-        });
+        }).execute();
 
     }
 

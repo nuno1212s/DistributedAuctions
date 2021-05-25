@@ -9,6 +9,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -28,6 +29,8 @@ public class NodeLookupOperation implements Operation {
     private final Map<NodeTriple, Long> waiting_response;
 
     private final Consumer<List<NodeTriple>> callWhenDone;
+
+    private final AtomicBoolean calledDone = new AtomicBoolean(false);
 
     private boolean finished = false;
 
@@ -60,14 +63,18 @@ public class NodeLookupOperation implements Operation {
 
     private void iterate() {
         if (this.ask()) {
+            System.out.println("Called this");
+
             //When we are done, cancel the task
             this.future.cancel(true);
 
-            this.callWhenDone.accept(this.closestKNodesWithState(NodeOperationState.RESPONDED));
+            if (calledDone.compareAndSet(false, true)) {
+                this.callWhenDone.accept(this.closestKNodesWithState(NodeOperationState.RESPONDED));
 
-            int kBucket = P2PStandards.getKBucketFor(this.localNode.getNodeID(), this.lookupID);
+                int kBucket = P2PStandards.getKBucketFor(this.localNode.getNodeID(), this.lookupID);
 
-            this.localNode.kBucketUpdated(kBucket);
+                this.localNode.kBucketUpdated(kBucket);
+            }
 
             setFinished(true);
         }
@@ -81,7 +88,7 @@ public class NodeLookupOperation implements Operation {
         }
     }
 
-    private boolean ask() {
+    private synchronized boolean ask() {
 
         if (this.waiting_response.size() >= P2PStandards.ALPHA) {
             //If we have more than alpha messages in transit, do not ask any more questions
@@ -93,7 +100,6 @@ public class NodeLookupOperation implements Operation {
         List<NodeTriple> nodeTriples = closestKNodesWithState(NodeOperationState.NOT_ASKED);
 
         if (nodeTriples.isEmpty() && waiting_response.isEmpty()) {
-            setFinished(true);
             return true;
         }
 
