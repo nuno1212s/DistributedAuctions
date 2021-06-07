@@ -1,10 +1,10 @@
 package me.evmanu.miner;
 
 import lombok.Getter;
-import me.evmanu.daos.Hashable;
-import me.evmanu.daos.blocks.BlockChain;
-import me.evmanu.daos.blocks.BlockChainStandards;
-import me.evmanu.daos.blocks.blockbuilders.PoWBlockBuilder;
+import me.evmanu.blockchain.Hashable;
+import me.evmanu.blockchain.blocks.BlockChain;
+import me.evmanu.blockchain.blocks.BlockChainStandards;
+import me.evmanu.blockchain.blocks.blockbuilders.PoWBlockBuilder;
 import me.evmanu.util.ByteHelper;
 
 

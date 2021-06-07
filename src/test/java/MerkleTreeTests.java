@@ -1,6 +1,5 @@
-import me.evmanu.daos.blocks.merkletree.MerkleTree;
-import me.evmanu.daos.blocks.merkletree.MerkleTreeNode;
-import me.evmanu.daos.transactions.Transaction;
+import me.evmanu.blockchain.blocks.merkletree.MerkleTree;
+import me.evmanu.blockchain.transactions.Transaction;
 import me.evmanu.util.ByteWrapper;
 import me.evmanu.util.Hex;
 import org.junit.jupiter.api.Test;

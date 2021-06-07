@@ -1,8 +1,9 @@
 package me.evmanu.miner;
 
-import me.evmanu.daos.blocks.Block;
-import me.evmanu.daos.blocks.BlockChain;
-import me.evmanu.daos.blocks.blockbuilders.BlockBuilder;
+import me.evmanu.blockchain.blocks.Block;
+import me.evmanu.blockchain.blocks.BlockChain;
+import me.evmanu.blockchain.blocks.TransactionPool;
+import me.evmanu.blockchain.blocks.blockbuilders.BlockBuilder;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -18,10 +19,13 @@ public class MiningManager {
 
     public List<MiningWorker> workers;
 
+    private TransactionPool transactionPool;
+
     public BlockChain currentBlockChain;
 
-    public MiningManager(BlockChain currentBlockChain) {
+    public MiningManager(TransactionPool transactionPool) {
         this.workers = new LinkedList<>();
+        this.transactionPool = transactionPool;
         this.currentBlockChain = currentBlockChain;
 
         for (int i = 0; i < threadCount; i++) {
@@ -31,6 +35,8 @@ public class MiningManager {
                     threadPool.submit(new MiningWorker(this, this.currentBlockChain, aux_base, aux_max));
         }
     }
+
+
 
     public void minedBlock(BlockBuilder block) {
 
