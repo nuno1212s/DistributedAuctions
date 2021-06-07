@@ -1,10 +1,7 @@
 package me.evmanu.blockchain.blocks.blockchains;
 
 import lombok.Getter;
-import me.evmanu.blockchain.blocks.Block;
-import me.evmanu.blockchain.blocks.BlockChain;
-import me.evmanu.blockchain.blocks.BlockChainStandards;
-import me.evmanu.blockchain.blocks.BlockHeader;
+import me.evmanu.blockchain.blocks.*;
 import me.evmanu.blockchain.transactions.Transaction;
 import me.evmanu.util.ByteHelper;
 import me.evmanu.util.ByteWrapper;
@@ -41,5 +38,10 @@ public class PoWBlock extends Block {
 
         hash.update(workProof.toByteArray());
 
+    }
+
+    @Override
+    public BlockType getBlockType() {
+        return BlockType.PROOF_OF_WORK;
     }
 }

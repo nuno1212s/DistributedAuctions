@@ -18,6 +18,8 @@ service P2PServer {
   rpc requestCRC(CRCRequest) returns (CRCResponse) {}
 
   rpc broadcastMessage(Broadcast) returns (BroadcastResponse) {}
+
+  rpc sendMessage(Message) returns (MessageResponse) {}
 }
 
 message Ping {
@@ -86,9 +88,19 @@ message Broadcast {
   bytes messageID = 3;
   int32 height = 4;
   bytes messageContent = 5;
-
 }
 
 message BroadcastResponse {
   bool seen = 1;
+}
+
+message Message {
+  bytes sendingNodeID = 1;
+  int32 sendingNodePort = 2;
+
+  bytes message = 3;
+}
+
+message MessageResponse {
+
 }

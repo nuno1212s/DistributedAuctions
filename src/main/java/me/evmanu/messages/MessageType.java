@@ -2,14 +2,18 @@ package me.evmanu.messages;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import me.evmanu.messages.messagetypes.BroadcastTransaction;
+import me.evmanu.messages.messagetypes.*;
 
 @AllArgsConstructor
 @Getter
 public enum MessageType {
 
-    BROADCAST_TRANSACTION(BroadcastTransaction.class);
+    BROADCAST_TRANSACTION(TransactionMessage.class),
+    BROADCAST_BLOCK(BlockMessage.class),
+    REQUEST_BLOCK_CHAIN(BlockChainInfoRequestMessage.class),
+    BLOCK_CHAIN_INFO(BlockChainInfoMessage.class),
+    REQUEST_BLOCK(RequestBlockMessage.class);
 
-    private Class<? extends Message> typeClass;
+    private final Class<? extends Message> typeClass;
 
 }

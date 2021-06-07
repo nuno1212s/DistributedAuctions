@@ -13,7 +13,9 @@ import me.evmanu.p2p.kademlia.P2PNode;
 import me.evmanu.p2p.nodeoperations.BroadcastMessageOperation;
 import me.evmanu.util.Hex;
 
+import java.util.LinkedList;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -32,9 +34,17 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
 
     private final P2PNode node;
 
+    private final List<BiConsumer<byte[], byte[]>> messageConsumers;
+
     public DistLedgerServerImpl(Logger logger, P2PNode p2PNode) {
         this.logger = logger;
         this.node = p2PNode;
+
+        this.messageConsumers = new LinkedList<>();
+    }
+
+    public void registerConsumer(BiConsumer<byte[], byte[]> messageConsumer) {
+        this.messageConsumers.add(messageConsumer);
     }
 
     @Override
@@ -109,7 +119,7 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
     public void requestCRC(CRCRequest request, StreamObserver<CRCResponse> responseObserver) {
 
         logger.log(Level.INFO, "Received CRC Request from node " + Hex.toHexString(request.getChallengingNodeID().toByteArray())
-         + " with challenge " + request.getChallenge());
+                + " with challenge " + request.getChallenge());
 
         long challenge = request.getChallenge();
 
@@ -140,6 +150,9 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
                     new BroadcastMessageOperation(this.node, request.getHeight(), messageID,
                             messageContent).execute());
 
+            for (BiConsumer<byte[], byte[]> messageConsumer : this.messageConsumers) {
+                messageConsumer.accept(request.getRequestingNodeID().toByteArray(), messageContent);
+            }
 
             System.out.println("Received new broadcast message, node " + Hex.toHexString(this.node.getNodeID()) +
                     " with content " + Hex.toHexString(messageContent));
@@ -150,6 +163,22 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
         }
 
         responseObserver.onNext(builder.build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void sendMessage(Message request, StreamObserver<MessageResponse> responseObserver) {
+
+        byte[] message = request.getMessage().toByteArray();
+
+        for (BiConsumer<byte[], byte[]> messageConsumer : this.messageConsumers) {
+            messageConsumer.accept(request.getSendingNodeID().toByteArray(),
+                    message);
+        }
+
+        System.out.println("Node " + Hex.toHexString(this.node.getNodeID()) + " has received a message from the node " +
+                Hex.toHexString(request.getSendingNodeID().toByteArray()));
+
         responseObserver.onCompleted();
     }
 }

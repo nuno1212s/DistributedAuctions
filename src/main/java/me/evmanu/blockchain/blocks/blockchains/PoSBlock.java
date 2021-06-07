@@ -5,6 +5,7 @@ import me.evmanu.Standards;
 import me.evmanu.blockchain.blocks.Block;
 import me.evmanu.blockchain.blocks.BlockChain;
 import me.evmanu.blockchain.blocks.BlockHeader;
+import me.evmanu.blockchain.blocks.BlockType;
 import me.evmanu.blockchain.transactions.ScriptSignature;
 import me.evmanu.blockchain.transactions.Transaction;
 import me.evmanu.util.ByteWrapper;
@@ -85,5 +86,10 @@ public class PoSBlock extends Block {
         hash.update(this.signingID);
         hash.update(this.signature);
 
+    }
+
+    @Override
+    public BlockType getBlockType() {
+        return BlockType.PROOF_OF_STAKE;
     }
 }

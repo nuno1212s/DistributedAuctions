@@ -15,7 +15,7 @@ import java.security.KeyPair;
 import java.security.PublicKey;
 import java.util.ArrayList;
 
-public class BlockChainTests {
+public class PoWBlockChainTests {
 
     private final BlockChain blockChain = new PoWBlockChain(0, (short) 0x01, new ArrayList<>());
 

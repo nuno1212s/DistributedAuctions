@@ -1,14 +1,19 @@
 package me.evmanu.messages.messagetypes;
 
+import lombok.Getter;
 import me.evmanu.blockchain.transactions.Transaction;
 import me.evmanu.messages.Message;
 import me.evmanu.messages.MessageType;
 
-public class BroadcastTransaction extends Message {
+@Getter
+public class TransactionMessage extends Message {
 
-    private Transaction transaction;
+    private final Transaction transaction;
 
-    public BroadcastTransaction() {
+    public TransactionMessage(Transaction transaction) {
         super(MessageType.BROADCAST_TRANSACTION);
+
+        this.transaction = transaction;
     }
+
 }

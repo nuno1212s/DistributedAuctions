@@ -2,10 +2,7 @@ import me.evmanu.p2p.grpc.DistLedgerServer;
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
 import me.evmanu.p2p.kademlia.StoredKeyMetadata;
-import me.evmanu.p2p.nodeoperations.BroadcastMessageOperation;
-import me.evmanu.p2p.nodeoperations.ContentLookupOperation;
-import me.evmanu.p2p.nodeoperations.NodeLookupOperation;
-import me.evmanu.p2p.nodeoperations.StoreOperation;
+import me.evmanu.p2p.nodeoperations.*;
 import me.evmanu.util.Hex;
 import me.evmanu.util.Pair;
 import org.junit.Ignore;
@@ -222,8 +219,100 @@ public class KademliaTests {
 
     }
 
-
     @Test
+    public void testSendMessage() {
+
+        DistLedgerServer[] nodes = new DistLedgerServer[10];
+
+        P2PNode[] actualNodes = new P2PNode[nodes.length];
+
+        Thread[] threads = new Thread[nodes.length];
+
+        InetAddress localHost;
+
+        try {
+            localHost = InetAddress.getLocalHost();
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        //Because the number of nodes is less that K, node9 should know about all other nodes.
+        int firstPort = 8080;
+
+        for (int i = 0; i < nodes.length; i++) {
+            nodes[i] = new DistLedgerServer();
+
+            try {
+                actualNodes[i] = nodes[i].start(null, firstPort++);
+
+                int finalI = i;
+                threads[i] = new Thread(() -> {
+                    try {
+                        nodes[finalI].blockUntilShutdown();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                });
+
+                threads[i].start();
+
+                if (i > 0) {
+                    actualNodes[i].boostrap(Collections.singletonList(
+                            new NodeTriple(localHost, actualNodes[0].getNodePublicPort(),
+                                    actualNodes[0].getNodeID(), System.currentTimeMillis())
+                    ));
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        for (P2PNode actualNode : actualNodes) {
+            actualNode.waitForAllOperations();
+        }
+
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        for (P2PNode actualNode : actualNodes) {
+            List<Pair<NodeTriple, Integer>> nodeTriples = actualNode.collectAllNodesInRoutingTable();
+            System.out.println("Node table " + Hex.toHexString(actualNode.getNodeID()) + "( " + nodeTriples.size() + ") : " + nodeTriples);
+        }
+
+        for (P2PNode actualNode : actualNodes) {
+            new NodeLookupOperation(actualNode, actualNode.getNodeID(), (_done) -> {}).execute();
+
+            actualNode.waitForAllOperations();
+        }
+
+        for (P2PNode actualNode : actualNodes) {
+            List<Pair<NodeTriple, Integer>> nodeTriples = actualNode.collectAllNodesInRoutingTable();
+            System.out.println("Node table " + Hex.toHexString(actualNode.getNodeID()) + "( " + nodeTriples.size() + ") : " + nodeTriples);
+        }
+
+        String message = "Ola a todos";
+
+        System.out.println("Message content: " + Hex.toHexString(message.getBytes()));
+
+        System.out.println("Sending message from: " + Hex.toHexString(actualNodes[0].getNodeID()) + " to node " +
+                Hex.toHexString(actualNodes[1].getNodeID()));
+
+        new SendMessageOperation(actualNodes[0],  actualNodes[1].getNodeID(), message.getBytes()).execute();
+
+        try {
+            nodes[0].blockUntilShutdown();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    @Ignore
     public void testStoreProcedure() {
 
         DistLedgerServer[] nodes = new DistLedgerServer[10];

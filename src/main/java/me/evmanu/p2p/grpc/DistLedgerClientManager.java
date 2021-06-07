@@ -359,4 +359,37 @@ public class DistLedgerClientManager {
         }
     }
 
+    public void performSendMessage(P2PNode node, NodeTriple destination,
+            SendMessageOperation operation, byte[] message) {
+
+        try {
+            P2PServerGrpc.P2PServerStub p2pStub = newStub(destination);
+
+            Message newMessage = Message.newBuilder().setSendingNodeID(ByteString.copyFrom(node.getNodeID()))
+                    .setSendingNodePort(node.getNodePublicPort())
+                    .setMessage(ByteString.copyFrom(message))
+                    .build();
+
+            p2pStub.sendMessage(newMessage, new StreamObserver<>() {
+                @Override
+                public void onNext(MessageResponse value) { }
+
+                @Override
+                public void onError(Throwable t) {
+                    operation.handleFailedResponse();
+                }
+
+                @Override
+                public void onCompleted() {
+                    operation.handleSuccessfulResponse();
+                }
+            });
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            operation.handleFailedResponse();
+        }
+
+    }
+
 }

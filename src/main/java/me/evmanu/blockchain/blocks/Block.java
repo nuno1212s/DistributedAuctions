@@ -166,4 +166,6 @@ public abstract class Block implements Hashable, Signable {
      * @param hash
      */
     protected abstract void sub_addToHash(MessageDigest hash);
+
+    public abstract BlockType getBlockType();
 }

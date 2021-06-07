@@ -26,20 +26,33 @@ public class PoSBlockChain extends BlockChain {
         super(blockCount, version, blocks);
 
         this.allTimeStakes = new ConcurrentSkipListMap<>();
+
+        scanAllBlocksForStakes();
     }
 
     private void scanAllBlocksForStakes() {
         for (Block block : this.blocks) {
             PoSBlock poSBlock = (PoSBlock) block;
 
-            for (Map.Entry<ByteWrapper, Transaction> transaction : poSBlock.getTransactions().entrySet()) {
+            scanBlockForStakes(poSBlock);
+        }
+    }
 
-                if (isTransactionAStake(transaction.getValue())) {
+    private void scanBlockForStakes(PoSBlock block) {
 
+        for (Map.Entry<ByteWrapper, Transaction> transaction : block.getTransactions().entrySet()) {
 
-                } else if (isTransactionAStakeWithdrawal(transaction.getValue())) {
+            if (isTransactionAStake(transaction.getValue())) {
+                allTimeStakes.put(transaction.getKey(), Pair.of(transaction.getValue(), -1L));
+            } else if (isTransactionAStakeWithdrawal(transaction.getValue())) {
 
+                Pair<Transaction, Long> transactionLongPair = allTimeStakes.get(transaction.getKey());
+
+                if (transactionLongPair == null) {
+                    throw new IllegalArgumentException("Cannot withdraw a transaction without it first being deposited");
                 }
+
+                transactionLongPair.setValue(block.getHeader().getBlockNumber());
             }
         }
     }
@@ -97,7 +110,7 @@ public class PoSBlockChain extends BlockChain {
 
             ScriptSignature stake = originalStake.getInputs()[0];
 
-            if (isTransactionAStake(originalStake)){
+            if (isTransactionAStake(originalStake)) {
 
                 ScriptSignature stakeInput = stake;
 
@@ -202,6 +215,18 @@ public class PoSBlockChain extends BlockChain {
         }
 
         return Optional.of(transactions.getKey());
+    }
+
+    @Override
+    public synchronized Optional<BlockChain> addBlock(Block block) {
+
+        Optional<BlockChain> forked = super.addBlock(block);
+
+        if (forked.isEmpty()) {
+            scanBlockForStakes((PoSBlock) block);
+        }
+
+        return forked;
     }
 
     @Override

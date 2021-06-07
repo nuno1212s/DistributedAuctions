@@ -87,8 +87,11 @@ public abstract class BlockChain {
 
             } else {
                 BlockChain fork = this.fork(blockNum - 1);
-            }
 
+                fork.addBlock(block);
+
+                return Optional.of(fork);
+            }
         }
 
         this.blocks.add(block);

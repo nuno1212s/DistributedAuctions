@@ -53,7 +53,12 @@ public class ConnInterceptor implements ServerInterceptor {
                     nodeID = ((Broadcast) message).getRequestingNodeID().toByteArray();
                     port = ((Broadcast) message).getRequestingNodePort();
 
-                }else {
+                } else if (message instanceof Message) {
+
+                    nodeID = ((Message) message).getSendingNodeID().toByteArray();
+                    port = ((Message) message).getSendingNodePort();
+
+                } else {
                     super.onMessage(message);
 
                     return;
