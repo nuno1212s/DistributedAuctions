@@ -37,21 +37,4 @@ public class BlockAdapter implements JsonSerializer<Block>, JsonDeserializer<Blo
 
         return context.deserialize(obj.get(MessageStandards.DATA_NAME), block.getBlockClass());
     }
-
-    public JsonElement serializeTransactions(LinkedHashMap<ByteWrapper, Transaction> transactions,
-                                             JsonSerializationContext context) {
-
-        List<Transaction> transactionList = new LinkedList<>();
-
-        transactions.forEach((id, t) -> {
-            transactionList.add(t);
-        });
-
-        return context.serialize(transactionList);
-    }
-
-    public LinkedHashMap<ByteWrapper, Transaction> fromTransactions(List<Transaction> transactions) {
-        return null;
-    }
-
 }
