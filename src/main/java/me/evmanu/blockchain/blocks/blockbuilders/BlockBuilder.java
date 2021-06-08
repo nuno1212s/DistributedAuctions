@@ -56,7 +56,9 @@ public abstract class BlockBuilder implements Hashable, Signable, Cloneable {
         LinkedHashMap<ByteWrapper, Transaction> transactionList = new LinkedHashMap<>();
 
         for (Transaction transaction : transactions) {
-            transactionList.put(new ByteWrapper(transaction.getTxID()), transaction);
+            if (transactionList.put(new ByteWrapper(transaction.getTxID()), transaction) != null) {
+                throw new IllegalArgumentException("Cannot have multiple transactions with the same ID!");
+            }
         }
 
         this.transactions.set(transactionList);

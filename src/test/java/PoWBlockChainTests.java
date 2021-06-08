@@ -259,11 +259,14 @@ public class PoWBlockChainTests {
 
     @Test
     public void testNewBuilder() {
+        final PoWBlockChain blockChain = new PoWBlockChain(0, (short) 0x01, new ArrayList<>());
+
         final var keyGenerator = Standards.getKeyGenerator();
 
         assert keyGenerator != null;
 
         final var keyPair = keyGenerator.generateKeyPair();
+        final var keyPair2 = keyGenerator.generateKeyPair();
 
         assert blockChain.getBlockCount() == 0;
 
@@ -271,7 +274,7 @@ public class PoWBlockChainTests {
 
         final var transaction = initGenesisTransactionFor(10, keyPair);
 
-        final var transaction2 = initGenesisTransactionFor(20, keyPair);
+        final var transaction2 = initGenesisTransactionFor(20, keyPair2);
 
         transactions.add(transaction);
         transactions.add(transaction2);

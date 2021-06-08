@@ -162,6 +162,8 @@ public abstract class BlockChain {
                                 input.getOutputIndex() + " has already been spent in the transaction " +
                                 Hex.toHexString(transaction.getKey()));
 
+                        System.out.println(transaction.getValue());
+
                         return false;
                     }
 
@@ -177,9 +179,11 @@ public abstract class BlockChain {
      * And verifies if any of it's inputs
      *
      * @param newTransaction
+     * @param currentBlockBeingChecked The block that is currently being checked, if -1 it will check against the
+     *                                 Block that is currently being built
      * @return
      */
-    private boolean verifyDoubleSpending(Transaction newTransaction, long currentBlockBeingChecked,
+    protected boolean verifyDoubleSpending(Transaction newTransaction, long currentBlockBeingChecked,
                                          LinkedHashMap<ByteWrapper, Transaction> transactionsBeingVerified) {
 
         long oldestOriginatingBlock = 0;

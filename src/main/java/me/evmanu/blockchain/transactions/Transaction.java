@@ -70,9 +70,10 @@ public class Transaction implements Hashable, Signable, Serializable {
     @Override
     public void addToHash(MessageDigest hash) {
 
-        var buffer = ByteBuffer.allocate(Short.BYTES);
+        var buffer = ByteBuffer.allocate(Short.BYTES + Integer.BYTES);
 
         buffer.putShort(version);
+        buffer.putInt(this.type.ordinal());
 
         hash.update(buffer.array());
 
@@ -89,6 +90,7 @@ public class Transaction implements Hashable, Signable, Serializable {
     public String toString() {
         return "Transaction{" +
                 "txID=" + Hex.toHexString(this.txID) +
+                ", type=" + this.type.name() +
                 ", version=" + version +
                 ", inputs=" + Arrays.toString(inputs) +
                 ", outputs=" + Arrays.toString(outputs) +

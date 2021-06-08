@@ -298,6 +298,23 @@ public class PoSBlockChain extends BlockChain {
     }
 
     @Override
+    protected boolean verifyTransaction(Transaction transaction, long currentlyExaminingBlock, LinkedHashMap<ByteWrapper, Transaction> blockTransactions) {
+
+        if (isTransactionAStake(transaction)) {
+
+            System.out.println("Transaction is a stake");
+
+            if (!verifyDoubleSpending(transaction, currentlyExaminingBlock, blockTransactions)) {
+                return false;
+            }
+
+            return true;
+        }
+
+        return super.verifyTransaction(transaction, currentlyExaminingBlock, blockTransactions);
+    }
+
+    @Override
     public BlockChain fork(long blockForkNumber) {
 
         List<Block> previousBlocks = new ArrayList<>((int) (blockForkNumber + 1));
