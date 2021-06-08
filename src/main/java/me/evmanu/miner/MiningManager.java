@@ -3,6 +3,7 @@ package me.evmanu.miner;
 import lombok.Setter;
 import me.evmanu.blockchain.blocks.Block;
 import me.evmanu.blockchain.blocks.BlockChain;
+import me.evmanu.blockchain.blocks.BlockChainHandler;
 import me.evmanu.blockchain.blocks.TransactionPool;
 import me.evmanu.blockchain.blocks.blockbuilders.BlockBuilder;
 import me.evmanu.blockchain.blocks.blockbuilders.PoWBlockBuilder;
@@ -25,6 +26,8 @@ public class MiningManager {
     @Setter
     private PoWBlockChain blockChain;
 
+    private BlockChainHandler blockChainHandler;
+
     public List<Pair<MiningWorker, Future<?>>> workers;
 
     private TransactionPool transactionPool;
@@ -33,6 +36,12 @@ public class MiningManager {
         this.workers = new LinkedList<>();
         this.transactionPool = transactionPool;
         this.blockChain = blockChain;
+    }
+
+    public MiningManager(TransactionPool transactionPool, BlockChainHandler handler) {
+        this.workers = new LinkedList<>();
+        this.transactionPool = transactionPool;
+        this.blockChainHandler = handler;
     }
 
     public void cancelWorkers() {
@@ -80,14 +89,23 @@ public class MiningManager {
 
         Block finishedBlock = block.build();
 
-        if (blockChain.verifyBlock(finishedBlock)) {
-            blockChain.addBlock(finishedBlock);
+        if (blockChainHandler == null) {
+            if (blockChain.verifyBlock(finishedBlock)) {
+                blockChain.addBlock(finishedBlock);
 
-            cancelWorkers();
+                cancelWorkers();
 
-            return true;
-        } else
-            System.out.println("Bloco inválido");
+                return true;
+            } else
+                System.out.println("Bloco inválido");
+        } else {
+            if (blockChainHandler.addBlockToChainAndUpdate(finishedBlock)) {
+                cancelWorkers();
+                return true;
+            } else {
+                System.out.println("Block inválido para a chain atual");
+            }
+        }
 
         return false;
     }

@@ -2,6 +2,7 @@ package me.evmanu;
 
 import lombok.Setter;
 import me.evmanu.blockchain.blocks.BlockChainHandler;
+import me.evmanu.blockchain.blocks.blockchains.PoWBlockChain;
 import me.evmanu.messages.MessageHandler;
 import me.evmanu.p2p.grpc.DistLedgerServer;
 import me.evmanu.p2p.kademlia.P2PNode;
@@ -9,6 +10,7 @@ import me.evmanu.p2p.kademlia.P2PStandards;
 import org.apache.commons.cli.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
 
 @Setter
 public class DistLedger {
@@ -110,7 +112,8 @@ public class DistLedger {
     }
 
     private void initializeBlockChain() {
-        this.chainHandler = new BlockChainHandler();
+        //TODO
+        this.chainHandler = new BlockChainHandler(new PoWBlockChain(0, (short) 0x1, new ArrayList<>()));
     }
 
     public static void main(String[] args) {

@@ -104,7 +104,7 @@ public class BlockChainComparator implements Comparator<BlockChain> {
      */
     private long checkBlockChainDiff(BlockChain b1, BlockChain b2) {
 
-        long blockStart = Math.min(b1.getBlockCount(), b2.getBlockCount());
+        long blockStart = Math.min(b1.getBlockCount(), b2.getBlockCount()) - 1;
 
         for (; blockStart >= 0; blockStart--) {
 
