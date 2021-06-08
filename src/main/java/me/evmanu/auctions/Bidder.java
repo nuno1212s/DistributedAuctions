@@ -13,7 +13,7 @@ public class Bidder {
 
     private String name;
 
-    private float balance;
+    // private float balance; // incorporada na wallet
 
     //private List<Auction> auctions; // tendo a lista de transações na wallet, é necssario ter a list de auction que o utilizador esta a participar?
 
