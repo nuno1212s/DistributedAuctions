@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit;
 public class BlockChainStandards {
 
     //TODO: Mara, usa esta variável para ver os zeros que são precisos
-    public static final int ZEROS_REQUIRED = 16;
+    public static final int ZEROS_REQUIRED = 8;
 
     public static final int MAX_FORK_DISTANCE = 4;
 

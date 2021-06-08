@@ -1,10 +1,12 @@
 package me.evmanu.p2p.nodeoperations;
 
+import lombok.Setter;
 import me.evmanu.p2p.kademlia.NodeTriple;
 import me.evmanu.p2p.kademlia.P2PNode;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class SendMessageOperation implements Operation {
 
@@ -17,6 +19,12 @@ public class SendMessageOperation implements Operation {
     private NodeTriple triple;
 
     private volatile boolean finished = false;
+
+    @Setter
+    private Consumer<byte[]> responseConsumer;
+
+    @Setter
+    private Runnable failedConsumer;
 
     public SendMessageOperation(P2PNode node, byte[] destinationNode, byte[] message) {
         this.node = node;
@@ -54,16 +62,18 @@ public class SendMessageOperation implements Operation {
         });
     }
 
-    public void handleSuccessfulResponse() {
+    public void handleSuccessfulResponse(byte[] res) {
         this.node.handleSeenNode(triple);
 
         finished = true;
+        this.responseConsumer.accept(res);
     }
 
     public void handleFailedResponse() {
         this.node.handleFailedNodePing(triple);
 
         finished = true;
+        this.failedConsumer.run();
     }
 
     @Override

@@ -443,7 +443,11 @@ public class P2PNode {
     }
 
     public void deleteValue(byte[] ID) {
-        this.storedValues.remove(new ByteWrapper(ID));
+        var wrappedID = new ByteWrapper(ID);
+
+        this.publishedValues.remove(wrappedID);
+
+        this.storedValues.remove(wrappedID);
     }
 
     public void registerRepublish() {

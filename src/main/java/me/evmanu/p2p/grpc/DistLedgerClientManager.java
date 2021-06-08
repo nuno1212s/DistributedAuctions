@@ -371,7 +371,9 @@ public class DistLedgerClientManager {
 
             p2pStub.sendMessage(newMessage, new StreamObserver<>() {
                 @Override
-                public void onNext(MessageResponse value) { }
+                public void onNext(MessageResponse value) {
+                    operation.handleSuccessfulResponse(value.getResponse().toByteArray());
+                }
 
                 @Override
                 public void onError(Throwable t) {
@@ -379,9 +381,7 @@ public class DistLedgerClientManager {
                 }
 
                 @Override
-                public void onCompleted() {
-                    operation.handleSuccessfulResponse();
-                }
+                public void onCompleted() { }
             });
 
         } catch (IOException e) {

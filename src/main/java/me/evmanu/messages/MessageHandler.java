@@ -3,6 +3,7 @@ package me.evmanu.messages;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import me.evmanu.Standards;
+import me.evmanu.auctions.AuctionHandler;
 import me.evmanu.blockchain.blocks.Block;
 import me.evmanu.blockchain.blocks.BlockChain;
 import me.evmanu.blockchain.BlockChainHandler;
@@ -22,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 public class MessageHandler {
 
@@ -29,11 +31,14 @@ public class MessageHandler {
 
     private final BlockChainHandler blockChainHandler;
 
+    private final AuctionHandler auctionHandler;
+
     private final Gson gson;
 
-    public MessageHandler(P2PNode node, BlockChainHandler blockChainHandler) {
+    public MessageHandler(P2PNode node, BlockChainHandler blockChainHandler, AuctionHandler auctionHandler) {
         this.node = node;
         this.blockChainHandler = blockChainHandler;
+        this.auctionHandler = auctionHandler;
 
         var gsonBuilder = new GsonBuilder();
 
@@ -47,22 +52,17 @@ public class MessageHandler {
                 .create();
     }
 
+    /**
+     * Broadcasts the message into the p2p network
+     *
+     * @param message
+     */
     public void publishMessage(MessageContent message) {
-        System.out.println("Translating");
-
         String json = null;
 
         Message finalMsg = new Message(message);
 
-        try {
-
-            json = gson.toJson(finalMsg);
-
-        } catch (Exception e) {
-            e.printStackTrace(System.err);
-
-            System.exit(0);
-        }
+        json = gson.toJson(finalMsg);
 
         System.out.println("Broadcasting " + json);
 
@@ -80,7 +80,7 @@ public class MessageHandler {
                 .execute();
     }
 
-    public void receiveMessageFrom(byte[] nodeID, byte[] message) {
+    public byte[] receiveMessageFrom(byte[] nodeID, byte[] message) {
 
         String json = new String(message, StandardCharsets.UTF_8);
 
@@ -164,7 +164,41 @@ public class MessageHandler {
                 System.out.println("Received block chain info: " + info.getBlockCount() + " blocks");
                 break;
             }
+            case AUCTION_ANNOUNCE: {
+
+                AuctionMessage auctionMessage = (AuctionMessage) parsedMessage.getContent();
+
+                auctionHandler.handleNewAuctionStarted(auctionMessage.getAuctionID());
+
+                break;
+            }
+            case REQUEST_PAYMENT: {
+
+                RequestPaymentMessage paymentMessage = (RequestPaymentMessage) parsedMessage.getContent();
+
+                auctionHandler.handlePaymentRequest(paymentMessage.getBidID(),
+                        paymentMessage.getAuctionID(), paymentMessage.getDestinationPubKeyHash());
+
+                break;
+            }
+            case BID_ANNOUNCE: {
+
+                BidMessage bidMessage = (BidMessage) parsedMessage.getContent();
+
+                auctionHandler.handleNewBid(bidMessage.getBidID());
+
+                break;
+            }
+            case AUCTION_REQUEST: {
+
+                auctionHandler.handleRequestActiveAuctions(nodeID);
+
+                break;
+            }
+
         }
+
+        return new byte[0];
     }
 
     public void sendBlockChainInfoTo(byte[] nodeID) {
@@ -206,6 +240,40 @@ public class MessageHandler {
 
             new SendMessageOperation(node, nodeID, message).execute();
         }
+    }
+
+
+    public void sendMessage(byte[] nodeID, MessageContent message, Consumer<byte[]> response, Runnable failed) {
+
+        Message msgObj = new Message(message);
+
+        var serializedMsg = gson.toJson(msgObj).getBytes(StandardCharsets.UTF_8);
+
+        var sendMsg = new SendMessageOperation(node, nodeID, serializedMsg);
+        sendMsg.setFailedConsumer(failed);
+
+        sendMsg.setResponseConsumer(response);
+
+        sendMsg.execute();
+    }
+
+    public void sendMessage(byte[] nodeID, MessageContent message) {
+
+        Message msgObj = new Message(message);
+
+        var serializedMsg = gson.toJson(msgObj).getBytes(StandardCharsets.UTF_8);
+
+        new SendMessageOperation(node, nodeID, serializedMsg).execute();
+    }
+
+    public <T> T deserializeObject(byte[] json, Class<T> toDeserialize) {
+        var jsonStr = new String(json, StandardCharsets.UTF_8);
+
+        return gson.fromJson(jsonStr, toDeserialize);
+    }
+
+    public byte[] serializeObject(Object obj) {
+        return gson.toJson(obj).getBytes(StandardCharsets.UTF_8);
     }
 
 }

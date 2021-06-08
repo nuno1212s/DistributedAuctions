@@ -21,6 +21,8 @@ public class StoreOperation implements StoreOperationBase {
 
         this.center.registerOngoingOperation(this);
 
+        center.storeValue(center.getNodeID(), this.metadata.getKey(), this.metadata.getValue());
+
         new NodeLookupOperation(center, this.metadata.getKey(), (nodes) -> {
 
             System.out.println("Storing information in the nodes: " + nodes);

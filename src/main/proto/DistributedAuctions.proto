@@ -27,7 +27,6 @@ message Ping {
   int32 requestingNodePort = 2;
 }
 
-
 message TargetID {
   bytes requestingNodeID = 1;
   int32 requestNodePort = 2;
@@ -102,5 +101,5 @@ message Message {
 }
 
 message MessageResponse {
-
+  bytes response = 1;
 }

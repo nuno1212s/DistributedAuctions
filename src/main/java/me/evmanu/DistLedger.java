@@ -1,6 +1,7 @@
 package me.evmanu;
 
 import lombok.Setter;
+import me.evmanu.auctions.AuctionHandler;
 import me.evmanu.blockchain.BlockChainHandler;
 import me.evmanu.blockchain.blocks.blockchains.PoWBlockChain;
 import me.evmanu.blockchain.transactions.ScriptPubKey;
@@ -38,6 +39,8 @@ public class DistLedger {
     private MessageHandler messageHandler;
 
     private BlockChainHandler chainHandler;
+
+    private AuctionHandler auctionHandler;
 
     private MiningManager miningManager;
 
@@ -89,7 +92,7 @@ public class DistLedger {
     }
 
     private void initMessageHandler() {
-        this.messageHandler = new MessageHandler(node, this.chainHandler);
+        this.messageHandler = new MessageHandler(node, this.chainHandler, auctionHandler);
 
         this.ledgerServer.registerMessageListener(messageHandler::receiveMessageFrom);
 

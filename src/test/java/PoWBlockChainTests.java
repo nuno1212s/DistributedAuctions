@@ -49,6 +49,7 @@ public class PoWBlockChainTests {
                                                            float[] amounts,
                                                            short version) throws IllegalAccessException {
 
+        assert transactionBlocks.length == transactions.length;
         assert transactions.length == correspondingKeys.length;
 
         assert outputs.length == amounts.length;

@@ -1,5 +1,7 @@
 package me.evmanu.auctions;
 
+import me.evmanu.Standards;
+
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -68,18 +70,18 @@ public class AuctionUI {
         System.out.print("Auction duration (in min): ");
         long auctionDuration = stdin.nextInt();
 
-        Auction newAuction = new Auction(name,openingBid,minimumBid,auctionDuration);
+       // Auction newAuction = new Auction(name,openingBid,minimumBid,auctionDuration);
     }
 
     // OPTION 2
     public void ongoingAuction() {
 
-        System.out.println("** LIST OF CURRENT AUCTIONS **\n");
+        /*System.out.println("** LIST OF CURRENT AUCTIONS **\n");
 
         List<Auction> auctions = new ArrayList<Auction>();
 
         // TODO: buscar os leiloes na rede
-        Auction newAuction = new Auction("La Ferrari",50000,80000,15); // apagar (para testes)
+        //Auction newAuction = new Auction("La Ferrari",50000,80000,15); // apagar (para testes)
         auctions.add(newAuction); // apagar
         Auction newAuction2 = new Auction("Seat Ibiza",4500,3500,20); // apagar (para testes)
         auctions.add(newAuction2); // apagar
@@ -101,7 +103,7 @@ public class AuctionUI {
 
         stdin.nextLine();
 
-        bidAuction(auctions.get(choice-1));
+        bidAuction(auctions.get(choice-1));*/
     }
 
     // method after entering on the 2 OPTION
@@ -109,7 +111,7 @@ public class AuctionUI {
         System.out.println("** MENU TO BID THE ITEM **\n");
 
         System.out.println("Name of the item: " + chosenAuction.getAuctionName());
-        System.out.println("Starting bid of the item: " + chosenAuction.getStartingBid());
+        System.out.println("Starting bid of the item: " + chosenAuction.getMinimumBid());
 
         Date initialDate = new Date(chosenAuction.getInitialTs() * (long)1000);
         Date finalDate = new Date(chosenAuction.getFinalTs() * (long)1000);
@@ -120,23 +122,15 @@ public class AuctionUI {
 
         float amount = stdin.nextFloat();
 
-        while(amount <= chosenAuction.getStartingBid()) {
-            System.out.print("Amount needs to be bigger than " + chosenAuction.getStartingBid() + ", choose again: ");
+        while(amount <= chosenAuction.getMinimumBid()) {
+            System.out.print("Amount needs to be bigger than " + chosenAuction.getMinimumBid() + ", choose again: ");
             amount = stdin.nextFloat();
         }
 
         stdin.nextLine();
 
-        Bid currentBid = new Bid(amount);
-
-        boolean b = currentBid.sendBid();
-
-        if(b) {
-            System.out.println("Bid was successfully submitted!");
-        } else {
-            System.out.println("Bid was not submitted!");
-        }
-
+        Bid currentBid = Bid.initializeBidFor(chosenAuction, new byte[0], Standards.getKeyGenerator().generateKeyPair(),
+                amount);
     }
 
 

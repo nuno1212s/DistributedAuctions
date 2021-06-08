@@ -1,39 +1,64 @@
 package me.evmanu.auctions;
 
 import lombok.Getter;
+import me.evmanu.Standards;
+import me.evmanu.blockchain.Hashable;
+
+import java.nio.ByteBuffer;
+import java.security.KeyPair;
+import java.security.MessageDigest;
 
 @Getter
-public class Bid {
+public class Bid implements Hashable {
 
-    // TODO: encriptar a bid com a public key do auctioneer
+    private final byte[] bidID;
 
-    private byte[] userNodeId;
+    private final byte[] userNodeId;
 
-    private float bidAmount;
+    private final byte[] auctionId;
 
-    private byte[] auctionId;
+    private final byte[] userPublicKey;
 
-    public Bid(float bidAmount) {
-        this.bidAmount = bidAmount;
-    }
+    private final byte[] encryptedBid;
 
-    public Bid(byte[] userNodeId, float bidAmount, byte[] auctionId) {
+    public Bid(byte[] userNodeId, byte[] userPublicKey, byte[] encryptedBid, byte[] auctionId) {
         this.userNodeId = userNodeId;
-        this.bidAmount = bidAmount;
+        this.userPublicKey = userPublicKey;
+        this.encryptedBid = encryptedBid;
         this.auctionId = auctionId;
+
+        this.bidID = Hashable.calculateHashOf(this);
     }
 
-    // TODO: da lhe nuno
+    public float getBidAmount(KeyPair auctionOwner) {
 
-    /**
-     * boolean true: bid was successfully submitted
-     *
-     */
-    public boolean sendBid() {
+        var sharedSecret = Standards.generateSharedSecret(userPublicKey, auctionOwner.getPrivate());
 
+        var decrypted = Standards.decryptWithPrefixIV(this.encryptedBid, sharedSecret);
 
+        var wrapped = ByteBuffer.wrap(decrypted);
 
-        return false;
+        return wrapped.getFloat();
     }
 
+    public static Bid initializeBidFor(Auction auction, byte[] nodeID, KeyPair keyPair, float amount) {
+        var sharedSecret = Standards.generateSharedSecret(auction.getAuctioneerPK(), keyPair.getPrivate());
+
+        var allocate = ByteBuffer.allocate(Float.BYTES);
+
+        allocate.putFloat(amount);
+
+        var cipherText = Standards.encryptTextWithPrependedIV(allocate.array(), sharedSecret);
+
+        return new Bid(nodeID, keyPair.getPublic().getEncoded(), cipherText,
+                auction.getAuctionId());
+    }
+
+    @Override
+    public void addToHash(MessageDigest hash) {
+        hash.update(this.userNodeId);
+        hash.update(this.auctionId);
+        hash.update(this.userPublicKey);
+        hash.update(this.encryptedBid);
+    }
 }
