@@ -41,4 +41,40 @@ public class ByteHelper {
         return 0x00;
     }
 
+    public static byte[] xor(byte[] xor1, byte[] xor2) {
+        assert xor1.length == xor2.length;
+
+        byte[] result = new byte[xor1.length];
+
+        for (int i = 0; i < xor1.length; i++) {
+
+            result[i] = (byte) (xor1[i] ^ xor2[i]);
+
+        }
+
+        return result;
+    }
+
+    public static boolean hasFirstBitsSetToZero(byte[] toVerify, int zeroes) {
+
+        for (int block = 0; block < (int) Math.ceil(zeroes / (float) Byte.SIZE); block++) {
+            byte byteBlock = toVerify[block];
+
+            //Get the amount of zeroes that are required for this byte, taking into account that the previous
+            //Bytes were already checked
+            int zeroesRequiredInThisBlock = Math.min(zeroes - (block * Byte.SIZE), 8);
+
+            final var byteWithFirstOnes = ByteHelper.getByteWithFirstOnes(zeroesRequiredInThisBlock);
+
+            //TO check if the first x bits are 0, we do an and with a byte where the first x bits are 1,
+            //And the rest are 0, so when we AND them, we must get 0
+            //Example: 0001 1111 & 1110 0000 = 0
+            if ((byteBlock & byteWithFirstOnes) != 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
 }

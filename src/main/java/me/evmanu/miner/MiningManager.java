@@ -1,42 +1,94 @@
 package me.evmanu.miner;
 
-import me.evmanu.daos.blocks.Block;
-import me.evmanu.daos.blocks.BlockChain;
-import me.evmanu.daos.blocks.blockbuilders.BlockBuilder;
+import lombok.Setter;
+import me.evmanu.blockchain.blocks.Block;
+import me.evmanu.blockchain.blocks.BlockChain;
+import me.evmanu.blockchain.blocks.TransactionPool;
+import me.evmanu.blockchain.blocks.blockbuilders.BlockBuilder;
+import me.evmanu.blockchain.blocks.blockbuilders.PoWBlockBuilder;
+import me.evmanu.blockchain.blocks.blockchains.PoWBlockChain;
+import me.evmanu.util.Pair;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 public class MiningManager {
 
-    private final int threadCount = 16;
+    private final int threadCount = 1;
 
     private final ExecutorService threadPool = Executors.newFixedThreadPool(threadCount);
 
-    public List<MiningWorker> workers;
+    @Setter
+    private PoWBlockChain blockChain;
 
-    public BlockChain currentBlockChain;
+    public List<Pair<MiningWorker, Future<?>>> workers;
 
-    public MiningManager(BlockChain currentBlockChain) {
+    private TransactionPool transactionPool;
+
+    public MiningManager(TransactionPool transactionPool, PoWBlockChain blockChain) {
         this.workers = new LinkedList<>();
-        this.currentBlockChain = currentBlockChain;
+        this.transactionPool = transactionPool;
+        this.blockChain = blockChain;
+    }
+
+    public void cancelWorkers() {
+        for (Pair<MiningWorker, Future<?>> worker : this.workers) {
+            worker.getValue().cancel(true);
+        }
+
+        workers.clear();
+    }
+
+    public void blockOnWorkers() {
+        for (Pair<MiningWorker, Future<?>> worker : workers) {
+            try {
+                worker.getValue().get();
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public void assignWork(PoWBlockBuilder builder) {
+
+        for (Pair<MiningWorker, Future<?>> worker : this.workers) {
+            worker.getValue().cancel(true);
+        }
+
+        workers.clear();
 
         for (int i = 0; i < threadCount; i++) {
             long aux_base = (Long.MAX_VALUE / threadCount) * i;
             long aux_max = (Long.MAX_VALUE / threadCount) * (i + 1);
-            final Future<?> tasks = threadPool.submit(new MiningWorker(this, this.currentBlockChain, aux_base, aux_max));
+            MiningWorker worker = new MiningWorker(this, builder, aux_base, aux_max);
+
+            /*final Future<?> tasks =
+                    threadPool.submit(worker);
+
+            this.workers.add(Pair.of(worker, tasks));*/
+
+            worker.run();
         }
     }
 
-    public void minedBlock(BlockBuilder block) {
+
+    public boolean minedBlock(BlockBuilder block) {
 
         Block finishedBlock = block.build();
-        if (currentBlockChain.verifyBlock(finishedBlock)) {
-            currentBlockChain.addBlock(finishedBlock);
+
+        if (blockChain.verifyBlock(finishedBlock)) {
+            blockChain.addBlock(finishedBlock);
+
+            cancelWorkers();
+
+            return true;
         } else
             System.out.println("Bloco inválido");
+
+        return false;
     }
 }
