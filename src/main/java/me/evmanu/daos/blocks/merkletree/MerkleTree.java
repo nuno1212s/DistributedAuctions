@@ -49,21 +49,29 @@ public class MerkleTree {
             return true;
     }
 
+    /**
+     *  Take every single hash of each transaction and
+     *  put them on a merkleTreeNode list of leaves
+     */
     public void getTransactionsHashes(LinkedHashMap<byte[], Transaction> transactions) {
 
         for(byte[] key : transactions.keySet() ) {
             Transaction currentTransaction = transactions.get(key);
-            //MerkleTreeNode auxNode = new MerkleTreeNode(currentTransaction.getTxID()); // TODO: comentado para testes
-            MerkleTreeNode auxNode = new MerkleTreeNode(key);
+            //MerkleTreeNode auxNode = new MerkleTreeNode(currentTransaction.getTxID()); // TODO: comentado para testes, pois estou a fornecer diretamente o valor de hash
+            MerkleTreeNode auxNode = new MerkleTreeNode(key); // TODO: apagar
             addLeaf(auxNode);
         }
 
         if(oddOrEven(this.leaves.size())) this.leaves.add(null); // se houverem transações impares, coloco uma transação null para ficar par
     }
 
+    /**
+     * Create the first list of parent nodes, starting from the
+     * bottom, which in this case represents the list of leaves
+     */
     public void createParentsLeaves() {
 
-        if(oddOrEven(this.leaves.size())) this.leaves.add(null); // ISTO É PARA TESTE, APAGAR DEPOIS
+        //if(oddOrEven(this.leaves.size())) this.leaves.add(null); // ISTO É PARA TESTE, APAGAR DEPOIS
 
         if (this.leaves.size() == 0) System.out.println("Zero transactions in the block");
 
@@ -77,6 +85,12 @@ public class MerkleTree {
         if(oddOrEven(this.nodes.size())) this.nodes.add(null);
     }
 
+    /**
+     * - Recursive method, which takes the list of the previous parent nodes
+     * and calculate their parents
+     * - The recursion ends when the parent list size is equal to one,
+     * aka root of the tree
+     */
     public void makeTree() {
 
         List<MerkleTreeNode> auxNodes = new ArrayList<>();
