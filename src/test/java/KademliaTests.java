@@ -219,7 +219,7 @@ public class KademliaTests {
 
     }
 
-    @Test
+    @Ignore
     public void testSendMessage() {
 
         DistLedgerServer[] nodes = new DistLedgerServer[10];

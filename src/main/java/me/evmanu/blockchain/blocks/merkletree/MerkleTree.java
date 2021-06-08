@@ -1,8 +1,9 @@
-package me.evmanu.daos.blocks.merkletree;
+package me.evmanu.blockchain.blocks.merkletree;
 
 import lombok.Getter;
 import me.evmanu.Standards;
-import me.evmanu.daos.transactions.Transaction;
+import me.evmanu.blockchain.transactions.Transaction;
+import me.evmanu.util.ByteWrapper;
 import me.evmanu.util.Hex;
 
 import java.util.ArrayList;
@@ -53,12 +54,12 @@ public class MerkleTree {
      *  Take every single hash of each transaction and
      *  put them on a merkleTreeNode list of leaves
      */
-    public void getTransactionsHashes(LinkedHashMap<byte[], Transaction> transactions) {
+    public void getTransactionsHashes(LinkedHashMap<ByteWrapper, Transaction> transactions) {
 
-        for(byte[] key : transactions.keySet() ) {
+        for(ByteWrapper key : transactions.keySet() ) {
             Transaction currentTransaction = transactions.get(key);
             //MerkleTreeNode auxNode = new MerkleTreeNode(currentTransaction.getTxID()); // TODO: comentado para testes, pois estou a fornecer diretamente o valor de hash
-            MerkleTreeNode auxNode = new MerkleTreeNode(key); // TODO: apagar
+            MerkleTreeNode auxNode = new MerkleTreeNode(key.getBytes()); // TODO: apagar
             addLeaf(auxNode);
         }
 
@@ -122,7 +123,7 @@ public class MerkleTree {
         this.makeTree();
     }
 
-    public byte[] getRootHash(LinkedHashMap<byte[], Transaction> transactions) { // LinkedHashMap<byte[], Transaction> transactions
+    public byte[] getRootHash(LinkedHashMap<ByteWrapper, Transaction> transactions) { // LinkedHashMap<byte[], Transaction> transactions
 
         this.getTransactionsHashes(transactions);
 
@@ -133,7 +134,7 @@ public class MerkleTree {
         return this.root.getHash();
     }
 
-    public void initMerkleTree(LinkedHashMap<byte[], Transaction> transactions) {
+    public void initMerkleTree(LinkedHashMap<ByteWrapper, Transaction> transactions) {
 
         this.getTransactionsHashes(transactions);
 
@@ -186,7 +187,7 @@ public class MerkleTree {
         return nodeList;
     }
 
-    public List<byte[]> getMerkleHashes(LinkedHashMap<byte[], Transaction> transactions, byte[] targetHash) {
+    public List<byte[]> getMerkleHashes(LinkedHashMap<ByteWrapper, Transaction> transactions, byte[] targetHash) {
         List<byte[]> nodeList = new ArrayList<>();
 
         if(this.root == null) initMerkleTree(transactions); // avoiding to double initialize trees (it can generate conflict), because if root its not null, the tree has already been initialized in another method
@@ -203,7 +204,7 @@ public class MerkleTree {
     }
 
     // TODO: change to MerkleVerifiableTransaction?
-    public boolean verifyTransaction(LinkedHashMap<byte[], Transaction> transactions, byte[] targetHash, byte[] merkleRoot) {
+    public boolean verifyTransaction(LinkedHashMap<ByteWrapper, Transaction> transactions, byte[] targetHash, byte[] merkleRoot) {
 
         List<byte[]> nodeList = getMerkleHashes(transactions, targetHash);
 
