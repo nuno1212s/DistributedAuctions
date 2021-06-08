@@ -185,6 +185,7 @@ public class ScriptSignature implements Hashable, Signable, Serializable {
      * @param transaction
      * @param outputIndex
      * @param correspondingKeyPair
+     * @param outputs The outputs of the transaction this input is in
      * @return
      * @throws IllegalAccessException
      */

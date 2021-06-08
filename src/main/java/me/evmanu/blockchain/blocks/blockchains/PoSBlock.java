@@ -2,6 +2,8 @@ package me.evmanu.blockchain.blocks.blockchains;
 
 import lombok.Getter;
 import me.evmanu.Standards;
+import me.evmanu.blockchain.Hashable;
+import me.evmanu.blockchain.Signable;
 import me.evmanu.blockchain.blocks.Block;
 import me.evmanu.blockchain.blocks.BlockChain;
 import me.evmanu.blockchain.blocks.BlockHeader;
@@ -9,6 +11,7 @@ import me.evmanu.blockchain.blocks.BlockType;
 import me.evmanu.blockchain.transactions.ScriptSignature;
 import me.evmanu.blockchain.transactions.Transaction;
 import me.evmanu.util.ByteWrapper;
+import me.evmanu.util.Hex;
 
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
@@ -44,7 +47,12 @@ public class PoSBlock extends Block {
 
         Optional<Transaction> activeStake = blockChain.getActiveStake(this.signingID, this.getHeader().getBlockNumber());
 
-        if (activeStake.isEmpty()) return false;
+        if (activeStake.isEmpty()) {
+
+            System.out.println("Active stake is empty");
+
+            return false;
+        }
 
         Transaction transaction = activeStake.get();
 
@@ -60,31 +68,42 @@ public class PoSBlock extends Block {
 
         byte[] publicKey = input.getPublicKey();
 
+        System.out.println("Public key: " + Hex.toHexString(publicKey));
+
         KeyFactory keyFactory = Standards.getKeyFactoryInstance();
-        Signature signatureInstance = Standards.getSignatureInstance();
 
         try {
-            signatureInstance.initVerify(keyFactory.generatePublic(new X509EncodedKeySpec(publicKey)));
+            var encodedPublicKey = keyFactory.generatePublic(new X509EncodedKeySpec(publicKey));
 
-            this.addToSignature(signatureInstance);
-
-            if (signatureInstance.verify(this.signature)) {
+            if (Signable.verifySignatureOf(this, encodedPublicKey, this.signature)) {
                 return true;
             }
 
-        } catch (InvalidKeyException | InvalidKeySpecException | SignatureException e) {
+            System.out.println("Signature not verified");
+
+        } catch (InvalidKeySpecException e) {
             e.printStackTrace();
         }
 
         return false;
     }
 
+    @Override
+    public void addToSignature(Signature signature) throws SignatureException {
+        super.addToSignature(signature);
+
+        signature.update(this.signingID);
+
+    }
 
     @Override
     protected void sub_addToHash(MessageDigest hash) {
 
         hash.update(this.signingID);
         hash.update(this.signature);
+
+        System.out.println("Signing ID " + Hex.toHexString(signingID));
+        System.out.println("Signature " + Hex.toHexString(signature));
 
     }
 

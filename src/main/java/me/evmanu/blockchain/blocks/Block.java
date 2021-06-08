@@ -8,6 +8,7 @@ import me.evmanu.blockchain.Signable;
 import me.evmanu.blockchain.transactions.MerkleVerifiableTransaction;
 import me.evmanu.blockchain.transactions.Transaction;
 import me.evmanu.util.ByteWrapper;
+import me.evmanu.util.Hex;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -60,14 +61,12 @@ public abstract class Block implements Hashable, Signable {
      */
     public final boolean verifyBlockID() {
 
-        final var digest = Standards.getDigestInstance();
+        byte[] digest = Hashable.calculateHashOf(this);
 
-        assert digest != null;
-
-        this.addToHash(digest);
-
-        if (!Arrays.equals(digest.digest(), header.getBlockHash())) {
+        if (!Arrays.equals(digest, header.getBlockHash())) {
             System.out.println("Failed to verify block hash for block " + this);
+
+            System.out.println(Hex.toHexString(digest) + " vs " + Hex.toHexString(header.getBlockHash()));
             return false;
         }
 
@@ -97,7 +96,9 @@ public abstract class Block implements Hashable, Signable {
 
         var buffer = ByteBuffer.allocate(Long.BYTES);
 
-        hash.update(buffer.putLong(header.getBlockNumber()).array());
+        buffer.putLong(header.getBlockNumber());
+
+        hash.update(buffer.array());
 
         buffer.clear();
 
@@ -121,7 +122,7 @@ public abstract class Block implements Hashable, Signable {
     }
 
     @Override
-    public void addToSignature(Signature signature) {
+    public void addToSignature(Signature signature) throws SignatureException {
 
         var buffer = ByteBuffer.allocate(Long.BYTES);
 

@@ -2,17 +2,21 @@ package me.evmanu.blockchain.blocks.blockbuilders;
 
 import lombok.Getter;
 import me.evmanu.blockchain.Hashable;
+import me.evmanu.blockchain.Signable;
 import me.evmanu.blockchain.blocks.Block;
 import me.evmanu.blockchain.transactions.Transaction;
 import me.evmanu.util.ByteWrapper;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-public abstract class BlockBuilder implements Hashable, Cloneable {
+public abstract class BlockBuilder implements Hashable, Signable, Cloneable {
 
     @Getter
     private final long blockNumber;
@@ -30,7 +34,7 @@ public abstract class BlockBuilder implements Hashable, Cloneable {
      */
     private AtomicReference<LinkedHashMap<ByteWrapper, Transaction>> transactions;
 
-    private AtomicLong timeGenerated;
+    protected AtomicLong timeGenerated;
 
     public BlockBuilder(long blockNumber, short version, byte[] previousBlockHash) {
         this.blockNumber = blockNumber;
@@ -39,6 +43,23 @@ public abstract class BlockBuilder implements Hashable, Cloneable {
         this.transactions = new AtomicReference<>(new LinkedHashMap<>());
         this.merkleRoot = new AtomicReference<>(calculateMerkleRoot(this.transactions.get()));
         this.timeGenerated = new AtomicLong(System.currentTimeMillis());
+    }
+
+
+    /**
+     * In this method we assume the transactions have been verified
+     *
+     * @param transactions
+     */
+    public void setTransactions(List<Transaction> transactions) {
+
+        LinkedHashMap<ByteWrapper, Transaction> transactionList = new LinkedHashMap<>();
+
+        for (Transaction transaction : transactions) {
+            transactionList.put(new ByteWrapper(transaction.getTxID()), transaction);
+        }
+
+        this.transactions.set(transactionList);
     }
 
     /**
@@ -93,24 +114,26 @@ public abstract class BlockBuilder implements Hashable, Cloneable {
      */
     protected abstract void sub_addToHash(MessageDigest hash);
 
+    protected abstract void sub_addToSignature(Signature signature) throws SignatureException;
+
     @Override
     public final void addToHash(MessageDigest hash) {
 
         var buffer = ByteBuffer.allocate(Long.BYTES);
 
-        hash.update(buffer.putLong(blockNumber));
+        hash.update(buffer.putLong(blockNumber).array());
 
         buffer.clear();
 
         //TODO: Does this even work? The memory is 8 bytes but I'm only filling up 2. Does he self adjust?
         //Is this world real?
         buffer.putShort(this.version);
-        hash.update(buffer);
+        hash.update(buffer.array());
 
         buffer.clear();
         buffer.putLong(timeGenerated.get());
 
-        hash.update(buffer);
+        hash.update(buffer.array());
 
         hash.update(this.previousBlockHash);
 
@@ -123,6 +146,38 @@ public abstract class BlockBuilder implements Hashable, Cloneable {
         });
 
         sub_addToHash(hash);
+    }
+
+    @Override
+    public void addToSignature(Signature signature) throws SignatureException {
+
+        var buffer = ByteBuffer.allocate(Long.BYTES);
+
+        signature.update(buffer.putLong(blockNumber).array());
+
+        buffer.clear();
+
+        //TODO: Does this even work? The memory is 8 bytes but I'm only filling up 2. Does he self adjust?
+        //Is this world real?
+        buffer.putShort(this.version);
+        signature.update(buffer.array());
+
+        buffer.clear();
+        buffer.putLong(timeGenerated.get());
+
+        signature.update(buffer.array());
+
+        signature.update(this.previousBlockHash);
+
+        signature.update(this.merkleRoot.get());
+
+        transactions.get().forEach((txID, transaction) -> {
+
+            transaction.addToSignature(signature);
+
+        });
+
+        sub_addToSignature(signature);
     }
 
     public abstract Block build();

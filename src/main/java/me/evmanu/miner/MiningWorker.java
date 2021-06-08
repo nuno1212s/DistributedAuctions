@@ -13,22 +13,19 @@ public class MiningWorker implements Runnable {
 
     private MiningManager miningManager;
 
-    private BlockChain blockBuilder;
-
     private PoWBlockBuilder individualInstance;
 
     private long base;
 
     private long max;
 
-    public MiningWorker(MiningManager miningManager, BlockChain blockBuilder, long base, long max) {
+    public MiningWorker(MiningManager miningManager, PoWBlockBuilder blockBuilder, long base, long max) {
         this.miningManager = miningManager;
-        this.blockBuilder = blockBuilder;
         this.base = base;
         this.max = max;
 
         try {
-            this.individualInstance = (PoWBlockBuilder) blockBuilder.getCurrentBlock().clone();
+            this.individualInstance = (PoWBlockBuilder) blockBuilder.clone();
             this.individualInstance.setWorkProof(base);
         } catch (CloneNotSupportedException e) {
             e.printStackTrace();
@@ -45,8 +42,9 @@ public class MiningWorker implements Runnable {
             byte[] hash = Hashable.calculateHashOf(individualInstance);
 
             if (ByteHelper.hasFirstBitsSetToZero(hash, BlockChainStandards.ZEROS_REQUIRED)) {
-                miningManager.minedBlock(individualInstance);
-                break;
+                if (miningManager.minedBlock(individualInstance)) {
+                    break;
+                }
             }
         }
     }

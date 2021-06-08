@@ -83,14 +83,14 @@ public abstract class BlockChain {
 
         if (blockNum > 0) {
 
-            if (blockNum <= getBlockCount() && !canForkAt(blockNum)) {
-
-            } else {
+            if (blockNum < getBlockCount() && canForkAt(blockNum)) {
                 BlockChain fork = this.fork(blockNum - 1);
 
                 fork.addBlock(block);
 
                 return Optional.of(fork);
+            } else if (blockNum < getBlockCount()) {
+                return Optional.empty();
             }
         }
 

@@ -44,6 +44,14 @@ public class PoWBlockChain extends BlockChain {
             return false;
         }
 
+        if (this.getBlockCount() == 0 && block.getHeader().getBlockNumber() == 0) {
+
+            //Allow anything on the genesis block.
+            //It's all game.
+
+            return true;
+        }
+
         if (!block.isValid(this)) {
             System.out.println("The block does not have the correct proof of work.");
 

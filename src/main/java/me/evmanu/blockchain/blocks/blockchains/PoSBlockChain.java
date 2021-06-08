@@ -243,7 +243,16 @@ public class PoSBlockChain extends BlockChain {
             return false;
         }
 
+        if (this.getBlockCount() == 0 && block.getHeader().getBlockNumber() == 0) {
+
+            //Allow anything on the genesis block
+            //Game on.
+
+            return true;
+        }
+
         if (!block.isValid(this)) {
+            System.out.println("Block is not valid with this chain");
             return false;
         }
 
@@ -255,7 +264,7 @@ public class PoSBlockChain extends BlockChain {
 
         if (blockNumber > 0) {
 
-            if (blockNumber <= getBlockCount() && !canForkAt(blockNumber)) {
+            if (blockNumber <= getBlockCount() - 1 && !canForkAt(blockNumber)) {
 
                 System.out.println("This block chain is already further ahead of the block received.");
 

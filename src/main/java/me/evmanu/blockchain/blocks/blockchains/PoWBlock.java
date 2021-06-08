@@ -7,6 +7,7 @@ import me.evmanu.util.ByteHelper;
 import me.evmanu.util.ByteWrapper;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.LinkedHashMap;
 
@@ -16,10 +17,10 @@ import java.util.LinkedHashMap;
 @Getter
 public class PoWBlock extends Block {
 
-    private final BigInteger workProof;
+    private final long workProof;
 
     public PoWBlock(BlockHeader header, LinkedHashMap<ByteWrapper, Transaction> transactions,
-                    BigInteger workProof) {
+                    long workProof) {
         super(header, transactions);
 
         this.workProof = workProof;
@@ -36,7 +37,11 @@ public class PoWBlock extends Block {
     @Override
     protected void sub_addToHash(MessageDigest hash) {
 
-        hash.update(workProof.toByteArray());
+        var buffer = ByteBuffer.allocate(Long.BYTES);
+
+        buffer.putLong(workProof);
+
+        hash.update(buffer.array());
 
     }
 

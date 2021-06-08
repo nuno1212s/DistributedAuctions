@@ -5,10 +5,15 @@ import me.evmanu.blockchain.Hashable;
 import me.evmanu.blockchain.blocks.Block;
 import me.evmanu.blockchain.blocks.BlockHeader;
 import me.evmanu.blockchain.blocks.blockchains.PoWBlock;
+import me.evmanu.blockchain.transactions.Transaction;
+import me.evmanu.util.Hex;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.security.Signature;
+import java.security.SignatureException;
+import java.util.List;
 
 public class PoWBlockBuilder extends BlockBuilder {
 
@@ -30,18 +35,33 @@ public class PoWBlockBuilder extends BlockBuilder {
     @Override
     public Block build() {
 
+        byte[] blockHash = Hashable.calculateHashOf(this);
+
+        System.out.println(workProof + " " + Hex.toHexString(blockHash));
+
         var header = new BlockHeader(
                 getBlockNumber(),
                 getVersion(),
-                System.currentTimeMillis(),
+                timeGenerated.get(),
                 getPreviousBlockHash(),
-                Hashable.calculateHashOf(this),
+                blockHash,
                 new byte[0]
         );
 
         return new PoWBlock(header,
                 getTransactionsCurrentlyInBlock(),
-                BigInteger.valueOf(this.workProof));
+                this.workProof);
+    }
+
+    @Override
+    protected void sub_addToSignature(Signature signature) throws SignatureException {
+
+        final var buffer = ByteBuffer.allocate(Long.BYTES);
+
+        buffer.putLong(workProof);
+
+        signature.update(buffer.array());
+
     }
 
     @Override
@@ -51,7 +71,17 @@ public class PoWBlockBuilder extends BlockBuilder {
 
         buffer.putLong(workProof);
 
-        hash.update(buffer);
+        hash.update(buffer.array());
 
+    }
+
+    public static PoWBlockBuilder fromTransactionList(long blockNum, short version, byte[] prevHash,
+                                                      List<Transaction> transactions) {
+
+        PoWBlockBuilder poWBlockBuilder = new PoWBlockBuilder(blockNum, version, prevHash);
+
+        poWBlockBuilder.setTransactions(transactions);
+
+        return poWBlockBuilder;
     }
 }

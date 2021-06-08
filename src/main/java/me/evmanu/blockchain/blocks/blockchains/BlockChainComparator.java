@@ -67,9 +67,9 @@ public class BlockChainComparator implements Comparator<BlockChain> {
                 PoWBlock b1 = (PoWBlock) o1.getBlockByNumber(lastCommonBlock + 1),
                         b2 = (PoWBlock) o2.getBlockByNumber(lastCommonBlock + 1);
 
-                BigInteger wp1 = b1.getWorkProof(), wp2 = b2.getWorkProof();
+                long wp1 = b1.getWorkProof(), wp2 = b2.getWorkProof();
 
-                int i = wp1.compareTo(wp2);
+                int i = Long.compare(wp1, wp2);
 
                 if (i == 0) {
                     //They have exactly the same work proof????

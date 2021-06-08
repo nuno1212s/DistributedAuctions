@@ -1,5 +1,5 @@
 import me.evmanu.Standards;
-import me.evmanu.blockchain.blocks.BlockChain;
+import me.evmanu.blockchain.blocks.Block;
 import me.evmanu.blockchain.blocks.blockbuilders.BlockBuilder;
 import me.evmanu.blockchain.blocks.blockbuilders.PoWBlockBuilder;
 import me.evmanu.blockchain.blocks.blockchains.PoWBlockChain;
@@ -7,6 +7,8 @@ import me.evmanu.blockchain.transactions.ScriptPubKey;
 import me.evmanu.blockchain.transactions.ScriptSignature;
 import me.evmanu.blockchain.transactions.Transaction;
 import me.evmanu.blockchain.transactions.TransactionType;
+import me.evmanu.miner.MiningManager;
+import me.evmanu.util.Hex;
 import me.evmanu.util.Pair;
 import org.junit.Ignore;
 import org.junit.jupiter.api.Test;
@@ -14,10 +16,14 @@ import org.junit.jupiter.api.Test;
 import java.security.KeyPair;
 import java.security.PublicKey;
 import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 
 public class PoWBlockChainTests {
 
-    private final BlockChain blockChain = new PoWBlockChain(0, (short) 0x01, new ArrayList<>());
+    private static final short version = (short) 0x01;
+
+    private final PoWBlockChain blockChain = new PoWBlockChain(0, (short) 0x01, new ArrayList<>());
 
     private Transaction initGenesisTransactionFor(float amountPerOutput, KeyPair... outputs) {
 
@@ -36,11 +42,12 @@ public class PoWBlockChainTests {
         return new Transaction(blockChain.getVersion(), TransactionType.TRANSACTION, new ScriptSignature[0], output);
     }
 
-    private Transaction initTransactionWithPreviousOutputs(BlockBuilder currentBlock,
-                                                           Pair<Transaction, Integer>[] transactions,
+    private Transaction initTransactionWithPreviousOutputs(Pair<Transaction, Integer>[] transactions,
+                                                           Long[] transactionBlocks,
                                                            KeyPair[] correspondingKeys,
                                                            PublicKey[] outputs,
-                                                           float[] amounts) throws IllegalAccessException {
+                                                           float[] amounts,
+                                                           short version) throws IllegalAccessException {
 
         assert transactions.length == correspondingKeys.length;
 
@@ -58,12 +65,12 @@ public class PoWBlockChainTests {
 
             final var transaction = transactions[i];
             inputs[i] = ScriptSignature.fromOutput(transaction.getKey(),
-                    currentBlock.getBlockNumber(),
+                    transactionBlocks[i],
                     transaction.getValue(), correspondingKeys[i], newOutputs);
 
         }
 
-        return new Transaction(currentBlock.getVersion(), TransactionType.TRANSACTION, inputs, newOutputs);
+        return new Transaction(version, TransactionType.TRANSACTION, inputs, newOutputs);
     }
 
     @Test
@@ -248,6 +255,82 @@ public class PoWBlockChainTests {
         assert blockChain.verifyBlock(builtBlock);
 
         blockChain.addBlock(builtBlock);
+    }
+
+    @Test
+    public void testNewBuilder() {
+        final var keyGenerator = Standards.getKeyGenerator();
+
+        assert keyGenerator != null;
+
+        final var keyPair = keyGenerator.generateKeyPair();
+
+        assert blockChain.getBlockCount() == 0;
+
+        List<Transaction> transactions = new LinkedList<>();
+
+        final var transaction = initGenesisTransactionFor(10, keyPair);
+
+        final var transaction2 = initGenesisTransactionFor(20, keyPair);
+
+        transactions.add(transaction);
+        transactions.add(transaction2);
+
+        PoWBlockBuilder blockBuilder = PoWBlockBuilder.fromTransactionList(0, version, new byte[0], transactions);
+
+        MiningManager manager = new MiningManager(null, blockChain);
+
+        manager.assignWork(blockBuilder);
+        manager.blockOnWorkers();
+
+        assert blockChain.getBlockCount() > 0;
+
+        Block latestValidBlock = blockChain.getLatestValidBlock();
+
+        System.out.println("Latest block hash " + Hex.toHexString(latestValidBlock.getHeader().getBlockHash()));
+
+        try {
+            Transaction testTransaction = initTransactionWithPreviousOutputs(new Pair[]{
+                            Pair.of(transaction, 0)
+                    },
+                    new Long[]{
+                            blockBuilder.getBlockNumber()},
+
+                    new KeyPair[]{
+                            keyPair
+                    },
+                    new PublicKey[]{
+                            keyPair.getPublic()
+                    },
+                    new float[]{
+                            10
+                    },
+                    (short) 0x1);
+
+            assert blockChain.verifyTransaction(testTransaction);
+
+            transactions.clear();
+
+            transactions.add(testTransaction);
+
+            PoWBlockBuilder nBlockBuilder = PoWBlockBuilder.fromTransactionList(
+                    latestValidBlock.getHeader().getBlockNumber() + 1,
+                    version,
+                    latestValidBlock.getHeader().getBlockHash(), transactions);
+
+            manager.assignWork(nBlockBuilder);
+            manager.blockOnWorkers();
+
+            assert blockChain.getBlockCount() > 1;
+
+            final var transaction3 = initGenesisTransactionFor(20, keyPair);
+
+            assert !blockChain.verifyTransaction(transaction3);
+
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+
     }
 
 }
