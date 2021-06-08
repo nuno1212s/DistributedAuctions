@@ -10,12 +10,14 @@ import java.util.List;
 public class Bidder {
 
     byte[] userId; // will be the public key
+
     private String name;
-    private float walletAmount;
 
-    private List<Auction> auctions;
+    private float balance;
 
+    //private List<Auction> auctions; // tendo a lista de transações na wallet, é necssario ter a list de auction que o utilizador esta a participar?
 
+    // private Wallet userWallet;
 
 
 }

@@ -110,7 +110,11 @@ public class AuctionUI {
 
         System.out.println("Name of the item: " + chosenAuction.getAuctionName());
         System.out.println("Starting bid of the item: " + chosenAuction.getStartingBid());
-        System.out.println("End of auction: DATE"); // TODO: FINAL_TS TO DATE
+
+        Date initialDate = new Date(chosenAuction.getInitialTs() * (long)1000);
+        Date finalDate = new Date(chosenAuction.getFinalTs() * (long)1000);
+        System.out.println("Start of auction: " + initialDate );
+        System.out.println("End of auction: " + finalDate );
 
         System.out.print("\nPlease, choose a bid amount: ");
 

@@ -68,6 +68,7 @@ public class Auction {
 
         Auction ibizaAuction = new Auction("Leilao da Ibiza", 10, 100, 60);
 
+        System.out.println(ibizaAuction.getFinalTs());
     }
 
 

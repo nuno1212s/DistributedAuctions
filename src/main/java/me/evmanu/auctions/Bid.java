@@ -5,7 +5,7 @@ import lombok.Getter;
 @Getter
 public class Bid {
 
-    // TODO: encriptar a bid com a pk do auctioneer
+    // TODO: encriptar a bid com a public key do auctioneer
 
     private byte[] userNodeId;
 
