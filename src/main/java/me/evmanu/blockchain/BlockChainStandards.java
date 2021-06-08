@@ -9,7 +9,7 @@ public class BlockChainStandards {
 
     public static final int MAX_FORK_DISTANCE = 4;
 
-    public static final int MIN_TRANSACTION_COUNT = 10, MAX_TRANSACTION_COUNT = 100;
+    public static final int MIN_TRANSACTION_COUNT = 2, MAX_TRANSACTION_COUNT = 100;
 
     /**
      * Every EPOCH_SIZE time, generate a new Proof of stake block

@@ -2,20 +2,24 @@ package me.evmanu;
 
 import lombok.Setter;
 import me.evmanu.blockchain.BlockChainHandler;
-import me.evmanu.blockchain.blocks.Block;
-import me.evmanu.blockchain.blocks.BlockChain;
 import me.evmanu.blockchain.blocks.blockchains.PoWBlockChain;
+import me.evmanu.blockchain.transactions.ScriptPubKey;
+import me.evmanu.blockchain.transactions.ScriptSignature;
+import me.evmanu.blockchain.transactions.Transaction;
+import me.evmanu.blockchain.transactions.TransactionType;
 import me.evmanu.messages.MessageHandler;
 import me.evmanu.messages.messagetypes.BlockChainRequestMessage;
+import me.evmanu.messages.messagetypes.BlockMessage;
+import me.evmanu.messages.messagetypes.TransactionMessage;
+import me.evmanu.miner.MiningManager;
 import me.evmanu.p2p.grpc.DistLedgerServer;
 import me.evmanu.p2p.kademlia.P2PNode;
 import me.evmanu.p2p.kademlia.P2PStandards;
 import org.apache.commons.cli.*;
 
 import java.io.IOException;
+import java.security.KeyPair;
 import java.util.ArrayList;
-import java.util.Optional;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -34,6 +38,8 @@ public class DistLedger {
     private MessageHandler messageHandler;
 
     private BlockChainHandler chainHandler;
+
+    private MiningManager miningManager;
 
     private Thread serverBlockedThread;
 
@@ -87,6 +93,12 @@ public class DistLedger {
 
         this.ledgerServer.registerMessageListener(messageHandler::receiveMessageFrom);
 
+        this.miningManager.registerMinedBlockListener((block) -> {
+            System.out.println("PUBLISHING A NEW BLOCK.");
+
+            messageHandler.publishMessage(new BlockMessage(block));
+        });
+
         System.out.println("Initialized messages...");
     }
 
@@ -139,6 +151,8 @@ public class DistLedger {
         //TODO
         this.chainHandler = new BlockChainHandler(new PoWBlockChain(0, (short) 0x1, new ArrayList<>()));
 
+        this.miningManager = new MiningManager(this.chainHandler.getTransactionPool(), this.chainHandler);
+
         System.out.println("Initialized block chain");
     }
 
@@ -170,7 +184,41 @@ public class DistLedger {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        testPublishTransaction();
     }
+
+    private void testPublishTransaction() {
+
+        var keyPair = Standards.getKeyGenerator().generateKeyPair();
+
+        var transaction = initGenesisTransactionFor(10, keyPair);
+
+        System.out.println("Publish transaction " + transaction);
+
+        this.messageHandler.publishMessage(new TransactionMessage(transaction));
+
+        this.chainHandler.getTransactionPool().receiveTransaction(transaction);
+
+    }
+
+    public static Transaction initGenesisTransactionFor(float amountPerOutput, KeyPair... outputs) {
+
+        final var keyGenerator = Standards.getKeyGenerator();
+
+        assert keyGenerator != null;
+
+        var output = new ScriptPubKey[outputs.length];
+
+        for (int i = 0; i < outputs.length; i++) {
+            var outputI = outputs[i];
+
+            output[i] = new ScriptPubKey(Standards.calculateHashedPublicKeyFrom(outputI.getPublic()), amountPerOutput);
+        }
+
+        return new Transaction((short) 0x1, TransactionType.TRANSACTION, new ScriptSignature[0], output);
+    }
+
 
     public static void main(String[] args) {
         new DistLedger(args);

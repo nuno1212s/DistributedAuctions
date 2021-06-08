@@ -66,8 +66,8 @@ public class ConnInterceptor implements ServerInterceptor {
 
                 NodeTriple seen = new NodeTriple(finalAddress, port, nodeID, System.currentTimeMillis());
 
-                System.out.println("Received a message of the type " + message.getClass() + " from the node " +
-                        seen);
+                //System.out.println("Received a message of the type " + message.getClass() + " from the node " +
+                //        seen);
 
                 //Fork the context as handling seen nodes will probably call RPCs that originate from this
                 //Server (This is required by gRPC for programs that use a mix of client and server on the same

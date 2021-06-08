@@ -145,17 +145,19 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
 
             byte[] messageContent = request.getMessageContent().toByteArray();
 
+            //System.out.println("Received new broadcast message, node " + Hex.toHexString(this.node.getNodeID()) +
+            //        " with content " + Hex.toHexString(messageContent));
+
             //Like in ConnInterceptor, fork the context so we can send messages while also receiving them
-            Context.current().fork().run(() ->
-                    new BroadcastMessageOperation(this.node, request.getHeight(), messageID,
-                            messageContent).execute());
+            Context.current().fork().run(() -> {
+                new BroadcastMessageOperation(this.node, request.getHeight(), messageID,
+                        messageContent).execute();
 
-            for (BiConsumer<byte[], byte[]> messageConsumer : this.messageConsumers) {
-                messageConsumer.accept(request.getRequestingNodeID().toByteArray(), messageContent);
-            }
+                for (BiConsumer<byte[], byte[]> messageConsumer : this.messageConsumers) {
+                    messageConsumer.accept(request.getRequestingNodeID().toByteArray(), messageContent);
+                }
+            });
 
-            System.out.println("Received new broadcast message, node " + Hex.toHexString(this.node.getNodeID()) +
-                    " with content " + Hex.toHexString(messageContent));
 
             builder.setSeen(false);
         } else {
@@ -171,10 +173,12 @@ public class DistLedgerServerImpl extends P2PServerGrpc.P2PServerImplBase {
 
         byte[] message = request.getMessage().toByteArray();
 
-        for (BiConsumer<byte[], byte[]> messageConsumer : this.messageConsumers) {
-            messageConsumer.accept(request.getSendingNodeID().toByteArray(),
-                    message);
-        }
+        Context.current().fork().run(() -> {
+            for (BiConsumer<byte[], byte[]> messageConsumer : this.messageConsumers) {
+                messageConsumer.accept(request.getSendingNodeID().toByteArray(),
+                        message);
+            }
+        });
 
         System.out.println("Node " + Hex.toHexString(this.node.getNodeID()) + " has received a message from the node " +
                 Hex.toHexString(request.getSendingNodeID().toByteArray()));

@@ -3,16 +3,20 @@ package me.evmanu.messages.adapters;
 import com.google.gson.*;
 import me.evmanu.blockchain.blocks.Block;
 import me.evmanu.blockchain.blocks.BlockType;
+import me.evmanu.blockchain.transactions.Transaction;
 import me.evmanu.messages.MessageStandards;
+import me.evmanu.util.ByteWrapper;
 
 import java.lang.reflect.Type;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
 
 public class BlockAdapter implements JsonSerializer<Block>, JsonDeserializer<Block> {
 
     @Override
     public JsonElement serialize(Block src, Type typeOfSrc, JsonSerializationContext context) {
 
-        //TODO: FIX THIS
         JsonObject object = new JsonObject();
 
         object.addProperty(MessageStandards.BLOCK_TYPE, src.getBlockType().ordinal());
@@ -32,6 +36,22 @@ public class BlockAdapter implements JsonSerializer<Block>, JsonDeserializer<Blo
         BlockType block = BlockType.values()[blockType];
 
         return context.deserialize(obj.get(MessageStandards.DATA_NAME), block.getBlockClass());
+    }
+
+    public JsonElement serializeTransactions(LinkedHashMap<ByteWrapper, Transaction> transactions,
+                                             JsonSerializationContext context) {
+
+        List<Transaction> transactionList = new LinkedList<>();
+
+        transactions.forEach((id, t) -> {
+            transactionList.add(t);
+        });
+
+        return context.serialize(transactionList);
+    }
+
+    public LinkedHashMap<ByteWrapper, Transaction> fromTransactions(List<Transaction> transactions) {
+        return null;
     }
 
 }

@@ -63,7 +63,6 @@ public class BlockChainComparator implements Comparator<BlockChain> {
                 When in proof of work, we choose the block chain that has the smallest BigInteger work proof
                 So effectively, we choose the work proof with the largest amount of zeros preceding it
                 */
-
                 PoWBlock b1 = (PoWBlock) o1.getBlockByNumber(lastCommonBlock + 1),
                         b2 = (PoWBlock) o2.getBlockByNumber(lastCommonBlock + 1);
 
@@ -116,9 +115,9 @@ public class BlockChainComparator implements Comparator<BlockChain> {
             if (Arrays.equals(block1Hash, block2Hash)) {
                 return blockStart;
             }
-
         }
 
-        return 0;
+        //They have no matching blocks
+        return -1;
     }
 }

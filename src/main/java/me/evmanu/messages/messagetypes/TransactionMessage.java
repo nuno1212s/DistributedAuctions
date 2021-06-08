@@ -15,7 +15,6 @@ public class TransactionMessage extends MessageContent {
         this.transaction = transaction;
     }
 
-
     @Override
     public MessageType getType() {
         return MessageType.BROADCAST_TRANSACTION;

@@ -40,13 +40,13 @@ public class PoSBlockChain extends BlockChain {
 
     private void scanBlockForStakes(PoSBlock block) {
 
-        for (Map.Entry<ByteWrapper, Transaction> transaction : block.getTransactions().entrySet()) {
+        for (Transaction transaction : block.getTransactions()) {
 
-            if (isTransactionAStake(transaction.getValue())) {
-                allTimeStakes.put(transaction.getKey(), Pair.of(transaction.getValue(), -1L));
-            } else if (isTransactionAStakeWithdrawal(transaction.getValue())) {
+            if (isTransactionAStake(transaction)) {
+                allTimeStakes.put(new ByteWrapper(transaction.getTxID()), Pair.of(transaction, -1L));
+            } else if (isTransactionAStakeWithdrawal(transaction)) {
 
-                Pair<Transaction, Long> transactionLongPair = allTimeStakes.get(transaction.getKey());
+                Pair<Transaction, Long> transactionLongPair = allTimeStakes.get(new ByteWrapper(transaction.getTxID()));
 
                 if (transactionLongPair == null) {
                     throw new IllegalArgumentException("Cannot withdraw a transaction without it first being deposited");
@@ -286,12 +286,12 @@ public class PoSBlockChain extends BlockChain {
 
         //We want to gradually verify transactions, including the transactions that have already been
         //Verified, so that there is no double spending possibility inside the block
-        for (Map.Entry<ByteWrapper, Transaction> transaction : block.getTransactions().entrySet()) {
-            if (!verifyTransaction(transaction.getValue(), block.getHeader().getBlockNumber(), verifiedTransactions)) {
+        for (Transaction transaction : block.getTransactions()) {
+            if (!verifyTransaction(transaction, block.getHeader().getBlockNumber(), verifiedTransactions)) {
                 return false;
             }
 
-            verifiedTransactions.put(transaction.getKey(), transaction.getValue());
+            verifiedTransactions.put(new ByteWrapper(transaction.getTxID()), transaction);
         }
 
         return true;

@@ -89,12 +89,12 @@ public class PoWBlockChain extends BlockChain {
 
         //We want to gradually verify transactions, including the transactions that have already been
         //Verified, so that there is no double spending possibility inside the block
-        for (Map.Entry<ByteWrapper, Transaction> transaction : block.getTransactions().entrySet()) {
-            if (!verifyTransaction(transaction.getValue(), block.getHeader().getBlockNumber(), verifiedTransactions)) {
+        for (Transaction transaction : block.getTransactions()) {
+            if (!verifyTransaction(transaction, block.getHeader().getBlockNumber(), verifiedTransactions)) {
                 return false;
             }
 
-            verifiedTransactions.put(transaction.getKey(), transaction.getValue());
+            verifiedTransactions.put(new ByteWrapper(transaction.getTxID()), transaction);
         }
 
         return true;

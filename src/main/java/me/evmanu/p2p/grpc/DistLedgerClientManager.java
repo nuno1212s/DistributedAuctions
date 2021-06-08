@@ -92,7 +92,6 @@ public class DistLedgerClientManager {
 
             return createdConnection;
         } else if (!cachedChannel.isTerminated() && !cachedChannel.isShutdown()) {
-            System.out.println("Cached channel");
             return cachedChannel;
         }
 

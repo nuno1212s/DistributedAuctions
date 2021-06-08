@@ -13,7 +13,8 @@ public enum MessageType {
     REQUEST_BLOCK_CHAIN(BlockChainRequestMessage.class),
     BLOCK_CHAIN_INFO(BlockChainInfoMessage.class),
     REQUEST_BLOCK(RequestBlockMessage.class),
-    BLOCK_REJECT(BlockRejectMessage.class);
+    BLOCK_REJECT(BlockRejectMessage.class),
+    TRANSACTION_REJECT(TransactionRejectMessage.class);
 
     private final Class<? extends MessageContent> typeClass;
 

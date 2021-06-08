@@ -8,13 +8,16 @@ import me.evmanu.blockchain.blocks.BlockChain;
 import me.evmanu.blockchain.BlockChainHandler;
 import me.evmanu.blockchain.blocks.blockchains.PoSBlock;
 import me.evmanu.blockchain.blocks.blockchains.PoWBlock;
+import me.evmanu.blockchain.transactions.Transaction;
 import me.evmanu.messages.adapters.BlockAdapter;
 import me.evmanu.messages.adapters.MessageAdapter;
 import me.evmanu.messages.messagetypes.*;
 import me.evmanu.p2p.kademlia.P2PNode;
 import me.evmanu.p2p.nodeoperations.BroadcastMessageOperation;
 import me.evmanu.p2p.nodeoperations.SendMessageOperation;
+import me.evmanu.util.Hex;
 
+import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -40,6 +43,7 @@ public class MessageHandler {
         this.gson = gsonBuilder
                 .registerTypeAdapter(Message.class, messageAdapter)
                 .registerTypeAdapter(Block.class, blockAdapter)
+                .excludeFieldsWithModifiers(Modifier.TRANSIENT)
                 .create();
     }
 
@@ -54,7 +58,7 @@ public class MessageHandler {
 
             json = gson.toJson(finalMsg);
 
-        } catch (Exception e ) {
+        } catch (Exception e) {
             e.printStackTrace(System.err);
 
             System.exit(0);
@@ -89,14 +93,28 @@ public class MessageHandler {
         switch (parsedMessage.getContent().getType()) {
 
             case BROADCAST_TRANSACTION: {
+
                 TransactionMessage transactions = (TransactionMessage) parsedMessage.getContent();
 
-                blockChainHandler.getTransactionPool().receiveTransaction(transactions.getTransaction());
+                var transaction = transactions.getTransaction();
+
+                System.out.println("Received a transaction " + transaction);
+
+                if (!blockChainHandler.getTransactionPool().receiveTransaction(transaction)) {
+                    System.out.println("FAILED TO ADD TRANSACTION");
+
+                    publishMessage(new TransactionRejectMessage(transaction.getTxID()));
+                }
+
                 break;
             }
 
             case BROADCAST_BLOCK: {
                 BlockMessage blockMessage = (BlockMessage) parsedMessage.getContent();
+
+                System.out.println("Received new block " + blockMessage.getBlock().getHeader().getBlockNumber() +
+                        " with hash " +
+                        Hex.toHexString(blockMessage.getBlock().getHeader().getBlockHash()));
 
                 if (!blockChainHandler.addBlockToChainAndUpdate(blockMessage.getBlock())) {
 
@@ -104,6 +122,11 @@ public class MessageHandler {
 
                     publishMessage(new BlockRejectMessage(nodeID, header.getBlockNumber(),
                             header.getBlockHash()));
+                } else {
+
+                    System.out.println("Received and added new block " + blockMessage.getBlock().getHeader().getBlockNumber() +
+                            " with hash " +
+                            Hex.toHexString(blockMessage.getBlock().getHeader().getBlockHash()));
                 }
                 break;
             }

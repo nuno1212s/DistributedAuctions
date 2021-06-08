@@ -25,7 +25,7 @@ public class PoWBlockChainTests {
 
     private final PoWBlockChain blockChain = new PoWBlockChain(0, (short) 0x01, new ArrayList<>());
 
-    private Transaction initGenesisTransactionFor(float amountPerOutput, KeyPair... outputs) {
+    public static Transaction initGenesisTransactionFor(float amountPerOutput, KeyPair... outputs) {
 
         final var keyGenerator = Standards.getKeyGenerator();
 
@@ -39,7 +39,7 @@ public class PoWBlockChainTests {
             output[i] = new ScriptPubKey(Standards.calculateHashedPublicKeyFrom(outputI.getPublic()), amountPerOutput);
         }
 
-        return new Transaction(blockChain.getVersion(), TransactionType.TRANSACTION, new ScriptSignature[0], output);
+        return new Transaction(version, TransactionType.TRANSACTION, new ScriptSignature[0], output);
     }
 
     private Transaction initTransactionWithPreviousOutputs(Pair<Transaction, Integer>[] transactions,

@@ -16,17 +16,17 @@ public class MessageAdapter implements JsonSerializer<Message>, JsonDeserializer
 
         int type = object.get(MessageStandards.MESSAGE_TYPE_NAME).getAsInt();
 
+        var data = object.get(MessageStandards.DATA_NAME);
+
         MessageType value = MessageType.values()[type];
 
-        return new Message(context.deserialize(object, value.getTypeClass()));
+        return new Message(context.deserialize(data, value.getTypeClass()));
     }
 
     @Override
     public JsonElement serialize(Message src, Type typeOfSrc, JsonSerializationContext context) {
 
         JsonObject object = new JsonObject();
-
-        System.out.println("Serializing message " + object.toString());
 
         object.addProperty(MessageStandards.MESSAGE_TYPE_NAME, src.getContent().getType().ordinal());
         object.add(MessageStandards.DATA_NAME, context.serialize(src.getContent()));

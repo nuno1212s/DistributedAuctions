@@ -1,20 +1,27 @@
 package me.evmanu.miner;
 
 import lombok.Setter;
+import me.evmanu.blockchain.BlockChainStandards;
 import me.evmanu.blockchain.blocks.Block;
 import me.evmanu.blockchain.BlockChainHandler;
 import me.evmanu.blockchain.TransactionPool;
+import me.evmanu.blockchain.blocks.BlockChain;
+import me.evmanu.blockchain.blocks.BlockHeader;
 import me.evmanu.blockchain.blocks.blockbuilders.BlockBuilder;
 import me.evmanu.blockchain.blocks.blockbuilders.PoWBlockBuilder;
 import me.evmanu.blockchain.blocks.blockchains.PoWBlockChain;
+import me.evmanu.blockchain.transactions.Transaction;
 import me.evmanu.util.Pair;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 public class MiningManager {
 
@@ -29,18 +36,66 @@ public class MiningManager {
 
     public List<Pair<MiningWorker, Future<?>>> workers;
 
+    private List<Consumer<Block>> minedBlockListeners;
+
+    private AtomicBoolean currentlyWorking = new AtomicBoolean(false);
+
     private TransactionPool transactionPool;
 
     public MiningManager(TransactionPool transactionPool, PoWBlockChain blockChain) {
         this.workers = new LinkedList<>();
+        this.minedBlockListeners = new LinkedList<>();
         this.transactionPool = transactionPool;
         this.blockChain = blockChain;
     }
 
     public MiningManager(TransactionPool transactionPool, BlockChainHandler handler) {
         this.workers = new LinkedList<>();
+        this.minedBlockListeners = new LinkedList<>();
         this.transactionPool = transactionPool;
         this.blockChainHandler = handler;
+
+        if (this.transactionPool != null) {
+            transactionPool.registerSubscriberForTransactionReception(this::receiveTransaction);
+        }
+    }
+
+    public void registerMinedBlockListener(Consumer<Block> blockConsumer) {
+        this.minedBlockListeners.add(blockConsumer);
+    }
+
+    private void receiveTransaction(int transactionCount, Transaction transaction) {
+
+        if (transactionCount >= BlockChainStandards.MIN_TRANSACTION_COUNT &&
+                this.currentlyWorking.compareAndSet(false, true)) {
+
+            System.out.println("Reached minimum block amount, starting to mine a block.");
+
+            var bestCurrentChain = this.blockChainHandler.getBestCurrentChain();
+
+            if (bestCurrentChain.isPresent()) {
+
+                var latestValidBlock = bestCurrentChain.get().getLatestValidBlock();
+
+                PoWBlockBuilder poWBlockBuilder;
+
+                if (latestValidBlock != null) {
+                    var header = latestValidBlock.getHeader();
+
+                    poWBlockBuilder = PoWBlockBuilder.fromTransactionList(header.getBlockNumber() + 1, bestCurrentChain.get().getVersion(),
+                            header.getBlockHash(),
+                            this.transactionPool.getFirstNTransactions(transactionCount));
+                } else {
+                    poWBlockBuilder = PoWBlockBuilder.fromTransactionList(0,
+                            bestCurrentChain.get().getVersion(),
+                            new byte[0],
+                            this.transactionPool.getFirstNTransactions(transactionCount));
+                }
+
+                assignWork(poWBlockBuilder);
+            }
+        }
+
     }
 
     public void cancelWorkers() {
@@ -49,6 +104,7 @@ public class MiningManager {
         }
 
         workers.clear();
+        this.currentlyWorking.set(false);
     }
 
     public void blockOnWorkers() {
@@ -68,6 +124,8 @@ public class MiningManager {
         }
 
         workers.clear();
+
+        this.currentlyWorking.set(true);
 
         for (int i = 0; i < threadCount; i++) {
             long aux_base = (Long.MAX_VALUE / threadCount) * i;
@@ -90,7 +148,12 @@ public class MiningManager {
 
         if (blockChainHandler == null) {
             if (blockChain.verifyBlock(finishedBlock)) {
+
                 blockChain.addBlock(finishedBlock);
+
+                for (Consumer<Block> minedBlockListener : this.minedBlockListeners) {
+                    minedBlockListener.accept(finishedBlock);
+                }
 
                 cancelWorkers();
 
@@ -99,6 +162,11 @@ public class MiningManager {
                 System.out.println("Bloco inválido");
         } else {
             if (blockChainHandler.addBlockToChainAndUpdate(finishedBlock)) {
+
+                for (Consumer<Block> minedBlockListener : this.minedBlockListeners) {
+                    minedBlockListener.accept(finishedBlock);
+                }
+
                 cancelWorkers();
                 return true;
             } else {

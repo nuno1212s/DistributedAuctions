@@ -72,7 +72,10 @@ public abstract class BlockChain {
     /**
      * Add a block to the block chain
      * <p>
-     * This assumes that the block has already been verified
+     * This assumes that the block has already been verified,
+     *
+     * If necessary, this method will fork the block chain and add the block to the newly forked
+     * Block chain
      *
      * @param block
      */
@@ -82,7 +85,7 @@ public abstract class BlockChain {
 
         long blockNum = header.getBlockNumber();
 
-        if (blockNum > 0) {
+        if (blockNum >= 0) {
 
             if (blockNum < getBlockCount() && canForkAt(blockNum)) {
 
@@ -222,7 +225,7 @@ public abstract class BlockChain {
                 return false;
             }
 
-            if (!verifyDoubleSpendingInTransactions(blockByNumber.getTransactions(), outputsToCheck)) {
+            if (!verifyDoubleSpendingInTransactions(blockByNumber.getIndexedTransactions(), outputsToCheck)) {
                 return false;
             }
         }
@@ -306,7 +309,7 @@ public abstract class BlockChain {
                 LinkedHashMap<ByteWrapper, Transaction> transactions;
 
                 if (isMinted(input.getOriginatingBlock())) {
-                    transactions = getBlockByNumber(input.getOriginatingBlock()).getTransactions();
+                    transactions = getBlockByNumber(input.getOriginatingBlock()).getIndexedTransactions();
                 } else if (currentlyExaminingBlock == input.getOriginatingBlock()) {
                     transactions = blockTransactions;
                 } else {
@@ -331,10 +334,13 @@ public abstract class BlockChain {
             inputAmount += output.getAmount();
         }
 
-        if (Float.compare(inputAmount, outputAmount) != 0) {
-            System.out.println("The amounts do not match up!");
+        if (getBlockCount() > 0) {
+            //Allow for transactions with no inputs in the genesis blocks
+            if (Float.compare(inputAmount, outputAmount) != 0) {
+                System.out.println("The amounts do not match up!");
 
-            return false;
+                return false;
+            }
         }
 
         //Since this is the most expensive part of verifying a transaction, only do it when everything else
@@ -372,7 +378,7 @@ public abstract class BlockChain {
 
         if (transaction.getType() != TransactionType.MINING_REWARD) return false;
 
-        Set<ByteWrapper> byteWrappers = block.getTransactions().keySet();
+        Set<ByteWrapper> byteWrappers = block.getIndexedTransactions().keySet();
 
         Optional<ByteWrapper> first = byteWrappers.stream().findFirst();
 

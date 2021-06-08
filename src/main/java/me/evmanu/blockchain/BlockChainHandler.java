@@ -4,6 +4,7 @@ import lombok.Getter;
 import me.evmanu.blockchain.blocks.Block;
 import me.evmanu.blockchain.blocks.BlockChain;
 import me.evmanu.blockchain.blocks.blockchains.BlockChainComparator;
+import me.evmanu.util.Hex;
 
 import java.util.*;
 
@@ -18,7 +19,7 @@ public class BlockChainHandler {
 
     public BlockChainHandler(BlockChain initial) {
         this.blockChains.add(initial);
-        this.transactionPool = new TransactionPool();
+        this.transactionPool = new TransactionPool(this);
     }
 
     public Optional<BlockChain> getBestCurrentChain() {
@@ -47,7 +48,7 @@ public class BlockChainHandler {
                     continue;
                 }
 
-                if (block.getHeader().getBlockNumber() == 0 && blockChain.getBlockCount() == 0) {
+                if (block.getHeader().getBlockNumber() == 0) {
                     return Optional.of(blockChain);
                 }
 
@@ -84,9 +85,10 @@ public class BlockChainHandler {
             }
 
             synchronized (this.blockChains) {
-
                 this.blockChains.sort(comparator);
 
+                System.out.println("First chain has latest block: " +
+                        Hex.toHexString(this.blockChains.get(0).getLatestValidBlock().getHeader().getBlockHash()));
             }
 
             return true;

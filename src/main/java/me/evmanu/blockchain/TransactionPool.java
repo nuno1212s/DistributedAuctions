@@ -19,6 +19,12 @@ public class TransactionPool {
 
     private final List<BiConsumer<Integer, Transaction>> subscribers = Collections.synchronizedList(new LinkedList<>());
 
+    private final BlockChainHandler handler;
+
+    public TransactionPool(BlockChainHandler handler) {
+        this.handler = handler;
+    }
+
     public int currentPoolSize() {
         return this.pendingTransactions.size();
     }
@@ -27,7 +33,18 @@ public class TransactionPool {
         subscribers.add(consumer);
     }
 
-    public void receiveTransaction(Transaction transaction) {
+    public boolean receiveTransaction(Transaction transaction) {
+
+        if (transaction == null) {
+            throw new NullPointerException("Cannot receive a null transaction");
+        }
+
+        if (this.handler.getBestCurrentChain().isPresent()) {
+            if (!this.handler.getBestCurrentChain().get().verifyTransaction(transaction)) {
+                return false;
+            }
+        }
+
         int currentCount = transactionCount.incrementAndGet();
 
         this.pendingTransactions.add(transaction);
@@ -37,6 +54,8 @@ public class TransactionPool {
                 subscriber.accept(currentCount, transaction);
             }
         }
+
+        return true;
     }
 
     public ImmutableList<Transaction> getFirstNTransactions(int N) {

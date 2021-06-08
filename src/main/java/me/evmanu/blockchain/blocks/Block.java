@@ -14,8 +14,10 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 
 /*
  * This block is a thread-safe stored block that has already been added to the block-chain. It cannot be altered only
@@ -32,7 +34,22 @@ public abstract class Block implements Hashable, Signable {
      * <p>
      * This uses a LinkedHashMap so we maintain ordering for the blocks
      */
-    protected final LinkedHashMap<ByteWrapper, Transaction> transactions;
+    protected final transient LinkedHashMap<ByteWrapper, Transaction> indexedTransactions;
+
+    protected final List<Transaction> transactions;
+
+    public Block(BlockHeader header, LinkedHashMap<ByteWrapper, Transaction> indexedTransactions) {
+        this.header = header;
+        this.indexedTransactions = indexedTransactions;
+
+        List<Transaction> transactions = new ArrayList<>(indexedTransactions.size());
+
+        indexedTransactions.forEach((txID, transaction) -> {
+            transactions.add(transaction);
+        });
+
+        this.transactions = transactions;
+    }
 
     /**
      * Verify that the previous block hash matches
@@ -74,11 +91,11 @@ public abstract class Block implements Hashable, Signable {
     }
 
     public final Transaction getTransactionByID(byte[] txID) {
-        return this.transactions.get(new ByteWrapper(txID));
+        return this.indexedTransactions.get(new ByteWrapper(txID));
     }
 
     public final boolean verifyTransactionIsInBlock(byte[] txID) {
-        return this.transactions.containsKey(new ByteWrapper(txID));
+        return this.indexedTransactions.containsKey(new ByteWrapper(txID));
     }
 
     public final boolean verifyTransactionIsInBlock(Transaction transaction) {
@@ -116,7 +133,7 @@ public abstract class Block implements Hashable, Signable {
 
         hash.update(header.getMerkleRoot());
 
-        transactions.forEach((txID, transaction) -> transaction.addToHash(hash));
+        transactions.forEach(transaction -> transaction.addToHash(hash));
 
         sub_addToHash(hash);
     }
@@ -145,7 +162,7 @@ public abstract class Block implements Hashable, Signable {
 
             signature.update(header.getMerkleRoot());
 
-            transactions.forEach((txID, transaction) -> transaction.addToSignature(signature));
+            transactions.forEach(transaction -> transaction.addToSignature(signature));
         } catch (SignatureException e) {
 
             e.printStackTrace();
