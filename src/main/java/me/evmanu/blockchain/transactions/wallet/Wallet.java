@@ -66,13 +66,13 @@ public class Wallet {
 
         List<Transaction> lstOfTransactions = new ArrayList<>();
 
-        LinkedHashMap<ByteWrapper, Transaction>  transactions = block.getTransactions();
+        List<Transaction>  transactions = block.getTransactions();
 
-        for (Map.Entry<ByteWrapper, Transaction> transactionEntry : transactions.entrySet()) {
+        for (Transaction transactionEntry : transactions) {
 
-            for (ScriptPubKey output : transactionEntry.getValue().getOutputs()) {
+            for (ScriptPubKey output : transactionEntry.getOutputs()) {
                 if (this.hashedListKeyPair.contains(new ByteWrapper(output.getHashedPubKey())))
-                    lstOfTransactions.add(transactionEntry.getValue());
+                    lstOfTransactions.add(transactionEntry);
             }
         }
 

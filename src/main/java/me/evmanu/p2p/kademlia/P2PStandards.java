@@ -12,6 +12,7 @@ import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 public class P2PStandards {
@@ -52,6 +53,15 @@ public class P2PStandards {
         }
 
         BOOSTRAP_NODES = BOOSTRAP_NODES1;
+    }
+
+    public static List<NodeTriple> getBoostrapNodes() {
+
+        Random random = new Random();
+
+        int i = random.nextInt(BOOSTRAP_NODES.size());
+
+        return Arrays.asList(BOOSTRAP_NODES.get(i));
     }
 
     public static int getKBucketFor(byte[] node1, byte[] node2) {

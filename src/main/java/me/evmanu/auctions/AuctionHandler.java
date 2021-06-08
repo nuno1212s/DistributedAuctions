@@ -263,7 +263,6 @@ public class AuctionHandler {
     }
 
     public void handlePaymentRequest(byte[] bid, byte[] auctionID, byte[] destination) {
-
     }
 
     public void handleNewBlock(Block block) {
@@ -324,9 +323,18 @@ public class AuctionHandler {
 
                         var ind = this.currentBidIndexForAuc.get(wrappedAuctionID);
 
+                        KeyPair keyPair = this.paymentKeys.get(wrappedAuctionID);
+
                         var bid = bids.get(ind);
 
+                        if (Float.compare(output.getAmount(), bid.getBidAmount(keyPair)) == 0) {
+                            //TODO: this auction is completed
 
+                            this.auctionWaitingForPayment.remove(wrappedAuctionID);
+                            this.currentBidIndexForAuc.remove(wrappedAuctionID);
+                            this.paymentKeys.remove(wrappedAuctionID);
+                            break;
+                        }
                     }
                 }
             }

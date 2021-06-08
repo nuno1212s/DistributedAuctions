@@ -128,7 +128,7 @@ public class DistLedger {
             Thread thread = null;
 
             if (cmd.hasOption("bst")) {
-                thread = new Thread(() -> node.boostrap(P2PStandards.getBOOSTRAP_NODES()));
+                thread = new Thread(() -> node.boostrap(P2PStandards.getBoostrapNodes()));
 
                 thread.start();
             }
