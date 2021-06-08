@@ -40,7 +40,7 @@ public class NodeLookupOperation implements Operation {
         this.localNode = node;
         this.lookupID = lookupID;
 
-        this.currentOperations = new ConcurrentSkipListMap<>(new KeyDistanceComparator(lookupID));
+        this.currentOperations = new ConcurrentSkipListMap<>(new KeyDistanceComparator(node, true, lookupID));
         this.waiting_response = new ConcurrentSkipListMap<>();
 
         //Get all the nodes in the buckets, since the currentOperations map is sorted by distance, so we always search the closest
@@ -138,6 +138,8 @@ public class NodeLookupOperation implements Operation {
         //Update our local routing table to reflect that this node is not reachable
         this.localNode.handleFailedNodePing(targetNode);
 
+        this.localNode.registerNegativeInteraction(targetNode.getNodeID().getBytes());
+
         this.iterate();
     }
 
@@ -146,6 +148,12 @@ public class NodeLookupOperation implements Operation {
         this.currentOperations.put(node, NodeOperationState.RESPONDED);
 
         this.waiting_response.remove(node);
+
+        if (foundNodes.isEmpty()) {
+            this.localNode.registerNegativeInteraction(node.getNodeID().getBytes());
+        } else {
+            this.localNode.registerPositiveInteraction(node.getNodeID().getBytes());
+        }
 
         //Notify our local routing table that we have seen this node
         this.localNode.handleSeenNode(node);

@@ -2,6 +2,7 @@ package me.evmanu.p2p.kademlia;
 
 import me.evmanu.util.Pair;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 
 public class P2PTrust {
@@ -23,10 +24,12 @@ public class P2PTrust {
         return 0.33f;
     }
 
-    public static int calculateNewDistance(BigInteger oldDistance, P2PNode node, byte[] destNode) {
-//        return (int) (oldDistance * B + (1 - B) * (1 / calculateT(node, destNode)));
+    public static BigInteger calculateNewDistance(BigInteger oldDistance, P2PNode node, byte[] destNode) {
+//        return (oldDistance * B + (1 - B) * (1 / calculateT(node, destNode)));
 
-        return 0;
+        double newDist = oldDistance.doubleValue() * B + (1 - B) * (1 / calculateT(node, destNode));
+
+        return BigDecimal.valueOf(newDist).toBigIntegerExact();
     }
 
     /**
@@ -41,9 +44,13 @@ public class P2PTrust {
     private static float calculateR_e(P2PNode node, byte[] destNode) {
         Pair<Integer, Integer> registeredInteractions = node.getRegisteredInteractions(destNode);
 
-        float total = registeredInteractions.getKey() + registeredInteractions.getValue();
+        int total = registeredInteractions.getKey() + registeredInteractions.getValue();
 
-        return registeredInteractions.getKey() / total - ((registeredInteractions.getValue() * 2) / total);
+        if (total == 0) {
+            return 1;
+        }
+
+        return registeredInteractions.getKey() / ((float) total) - ((registeredInteractions.getValue() * 2) / ((float) total));
     }
 
     public static float calculateT(P2PNode node, byte[] destinationNode) {

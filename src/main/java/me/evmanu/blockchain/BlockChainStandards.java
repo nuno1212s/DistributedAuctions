@@ -1,4 +1,4 @@
-package me.evmanu.blockchain.blocks;
+package me.evmanu.blockchain;
 
 import java.util.concurrent.TimeUnit;
 

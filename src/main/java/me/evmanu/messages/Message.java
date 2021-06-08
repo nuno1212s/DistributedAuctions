@@ -5,8 +5,8 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public abstract class Message {
+public final class Message {
 
-    private final MessageType type;
+    private final MessageContent content;
 
 }

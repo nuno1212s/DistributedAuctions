@@ -8,7 +8,7 @@ plugins {
     id 'idea'
 }
 
-mainClassName = 'me.evmanu.p2p.grpc.DistLedgerServer'
+mainClassName = 'me.evmanu.DistLedger'
 
 group 'me.evmanu'
 version '1.0-SNAPSHOT'

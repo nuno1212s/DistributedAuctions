@@ -1,8 +1,6 @@
 import me.evmanu.Standards;
-import me.evmanu.blockchain.Hashable;
 import me.evmanu.blockchain.blocks.Block;
-import me.evmanu.blockchain.blocks.BlockChain;
-import me.evmanu.blockchain.blocks.BlockChainHandler;
+import me.evmanu.blockchain.BlockChainHandler;
 import me.evmanu.blockchain.blocks.blockbuilders.PoWBlockBuilder;
 import me.evmanu.blockchain.blocks.blockchains.PoWBlockChain;
 import me.evmanu.blockchain.transactions.ScriptPubKey;

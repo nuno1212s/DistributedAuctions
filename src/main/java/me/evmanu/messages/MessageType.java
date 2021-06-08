@@ -10,10 +10,11 @@ public enum MessageType {
 
     BROADCAST_TRANSACTION(TransactionMessage.class),
     BROADCAST_BLOCK(BlockMessage.class),
-    REQUEST_BLOCK_CHAIN(BlockChainInfoRequestMessage.class),
+    REQUEST_BLOCK_CHAIN(BlockChainRequestMessage.class),
     BLOCK_CHAIN_INFO(BlockChainInfoMessage.class),
-    REQUEST_BLOCK(RequestBlockMessage.class);
+    REQUEST_BLOCK(RequestBlockMessage.class),
+    BLOCK_REJECT(BlockRejectMessage.class);
 
-    private final Class<? extends Message> typeClass;
+    private final Class<? extends MessageContent> typeClass;
 
 }

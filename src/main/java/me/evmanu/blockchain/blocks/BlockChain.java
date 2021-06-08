@@ -1,6 +1,7 @@
 package me.evmanu.blockchain.blocks;
 
 import lombok.Getter;
+import me.evmanu.blockchain.BlockChainStandards;
 import me.evmanu.blockchain.blocks.blockbuilders.BlockBuilder;
 import me.evmanu.blockchain.blocks.blockbuilders.PoWBlockBuilder;
 import me.evmanu.blockchain.transactions.ScriptPubKey;
@@ -84,6 +85,14 @@ public abstract class BlockChain {
         if (blockNum > 0) {
 
             if (blockNum < getBlockCount() && canForkAt(blockNum)) {
+
+                Block blockByNumber = getBlockByNumber(blockNum);
+
+                if (Arrays.equals(blockByNumber.getHeader().getBlockHash(), block.getHeader().getBlockHash())) {
+                    System.out.println("The block is already in this block chain");
+                    return Optional.empty();
+                }
+
                 BlockChain fork = this.fork(blockNum - 1);
 
                 fork.addBlock(block);

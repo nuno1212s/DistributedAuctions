@@ -12,11 +12,12 @@ public class BlockAdapter implements JsonSerializer<Block>, JsonDeserializer<Blo
     @Override
     public JsonElement serialize(Block src, Type typeOfSrc, JsonSerializationContext context) {
 
+        //TODO: FIX THIS
         JsonObject object = new JsonObject();
 
         object.addProperty(MessageStandards.BLOCK_TYPE, src.getBlockType().ordinal());
 
-        object.add(MessageStandards.DATA_NAME, context.serialize(src));
+        object.add(MessageStandards.DATA_NAME, context.serialize(src, src.getClass()));
 
         return object;
     }

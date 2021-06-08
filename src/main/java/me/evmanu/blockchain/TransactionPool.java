@@ -1,4 +1,4 @@
-package me.evmanu.blockchain.blocks;
+package me.evmanu.blockchain;
 
 import com.google.common.collect.ImmutableList;
 import me.evmanu.blockchain.transactions.Transaction;

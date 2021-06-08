@@ -47,7 +47,10 @@ public class Standards {
     public static KeyPairGenerator getKeyGenerator() {
 
         try {
-            return KeyPairGenerator.getInstance(KEY_FACTORY);
+            var keyPair = KeyPairGenerator.getInstance(KEY_FACTORY);
+
+
+            return keyPair;
         } catch (NoSuchAlgorithmException e) {
             e.printStackTrace();
         }

@@ -1,6 +1,8 @@
-package me.evmanu.blockchain.blocks;
+package me.evmanu.blockchain;
 
 import lombok.Getter;
+import me.evmanu.blockchain.blocks.Block;
+import me.evmanu.blockchain.blocks.BlockChain;
 import me.evmanu.blockchain.blocks.blockchains.BlockChainComparator;
 
 import java.util.*;

@@ -5,7 +5,9 @@ import com.google.gson.GsonBuilder;
 import me.evmanu.Standards;
 import me.evmanu.blockchain.blocks.Block;
 import me.evmanu.blockchain.blocks.BlockChain;
-import me.evmanu.blockchain.blocks.BlockChainHandler;
+import me.evmanu.blockchain.BlockChainHandler;
+import me.evmanu.blockchain.blocks.blockchains.PoSBlock;
+import me.evmanu.blockchain.blocks.blockchains.PoWBlock;
 import me.evmanu.messages.adapters.BlockAdapter;
 import me.evmanu.messages.adapters.MessageAdapter;
 import me.evmanu.messages.messagetypes.*;
@@ -13,6 +15,7 @@ import me.evmanu.p2p.kademlia.P2PNode;
 import me.evmanu.p2p.nodeoperations.BroadcastMessageOperation;
 import me.evmanu.p2p.nodeoperations.SendMessageOperation;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Optional;
@@ -29,18 +32,43 @@ public class MessageHandler {
         this.node = node;
         this.blockChainHandler = blockChainHandler;
 
-        this.gson = new GsonBuilder()
-                .registerTypeAdapter(Message.class, new MessageAdapter())
-                .registerTypeAdapter(Block.class, new BlockAdapter())
+        var gsonBuilder = new GsonBuilder();
+
+        var messageAdapter = new MessageAdapter();
+        var blockAdapter = new BlockAdapter();
+
+        this.gson = gsonBuilder
+                .registerTypeAdapter(Message.class, messageAdapter)
+                .registerTypeAdapter(Block.class, blockAdapter)
                 .create();
     }
 
-    public void publishMessage(Message message) {
-        String json = gson.toJson(message);
+    public void publishMessage(MessageContent message) {
+        System.out.println("Translating");
+
+        String json = null;
+
+        Message finalMsg = new Message(message);
+
+        try {
+
+            json = gson.toJson(finalMsg);
+
+        } catch (Exception e ) {
+            e.printStackTrace(System.err);
+
+            System.exit(0);
+        }
+
+        System.out.println("Broadcasting " + json);
 
         MessageDigest digest = Standards.getDigestInstance();
 
         digest.update(json.getBytes(StandardCharsets.UTF_8));
+
+        var buffer = ByteBuffer.allocate(Long.BYTES);
+
+        digest.update(buffer.array());
 
         byte[] hash = digest.digest();
 
@@ -52,40 +80,66 @@ public class MessageHandler {
 
         String json = new String(message, StandardCharsets.UTF_8);
 
+        System.out.println("Parsing message " + json);
+
         Message parsedMessage = gson.fromJson(json, Message.class);
 
-        switch (parsedMessage.getType()) {
+        System.out.println("Received message of the type " + parsedMessage.getContent().getType().name());
+
+        switch (parsedMessage.getContent().getType()) {
 
             case BROADCAST_TRANSACTION: {
-                TransactionMessage transactions = (TransactionMessage) parsedMessage;
+                TransactionMessage transactions = (TransactionMessage) parsedMessage.getContent();
 
                 blockChainHandler.getTransactionPool().receiveTransaction(transactions.getTransaction());
                 break;
             }
 
             case BROADCAST_BLOCK: {
-                BlockMessage blockMessage = (BlockMessage) parsedMessage;
+                BlockMessage blockMessage = (BlockMessage) parsedMessage.getContent();
 
-                blockChainHandler.addBlockToChainAndUpdate(blockMessage.getBlock());
-                break;
-            }
+                if (!blockChainHandler.addBlockToChainAndUpdate(blockMessage.getBlock())) {
 
-            case REQUEST_BLOCK_CHAIN: {
-                sendBlockChainInfoTo(nodeID);
+                    var header = blockMessage.getBlock().getHeader();
+
+                    publishMessage(new BlockRejectMessage(nodeID, header.getBlockNumber(),
+                            header.getBlockHash()));
+                }
                 break;
             }
 
             case REQUEST_BLOCK: {
 
-                RequestBlockMessage requestBlockMessage = (RequestBlockMessage) parsedMessage;
+                RequestBlockMessage requestBlockMessage = (RequestBlockMessage) parsedMessage.getContent();
 
                 sendBlockInfo(nodeID, requestBlockMessage.getBlockID(), requestBlockMessage.getPreviousBlockHash());
 
                 break;
             }
 
-            case BLOCK_CHAIN_INFO: {
+            case REQUEST_BLOCK_CHAIN: {
 
+                BlockChainRequestMessage requestMessage = (BlockChainRequestMessage) parsedMessage.getContent();
+
+                blockChainHandler.getBestCurrentChain().ifPresent(chain ->
+                {
+                    if (chain.getBlockCount() <= requestMessage.getCurrentBlock()) {
+                        return;
+                    }
+
+                    for (long cur = requestMessage.getCurrentBlock(); cur < chain.getBlockCount(); cur++) {
+                        sendBlock(nodeID, chain.getBlockByNumber(cur));
+                    }
+                });
+
+                break;
+            }
+
+            case BLOCK_CHAIN_INFO: {
+                BlockChainInfoMessage info = (BlockChainInfoMessage) parsedMessage.getContent();
+
+                System.out.println("Received block chain info: " + info.getBlockCount() + " blocks");
+                break;
             }
         }
     }
@@ -97,10 +151,23 @@ public class MessageHandler {
 
             BlockChainInfoMessage currentChain = new BlockChainInfoMessage(bestCurrentChain.get().getBlockCount());
 
-            byte[] message = gson.toJson(currentChain).getBytes(StandardCharsets.UTF_8);
+            Message msg = new Message(currentChain);
+
+            byte[] message = gson.toJson(msg).getBytes(StandardCharsets.UTF_8);
 
             new SendMessageOperation(node, nodeID, message).execute();
         }
+    }
+
+    public void sendBlock(byte[] nodeID, Block block) {
+
+        var blockMsg = new BlockMessage(block);
+
+        Message msg = new Message(blockMsg);
+
+        byte[] serializedMsg = gson.toJson(msg).getBytes(StandardCharsets.UTF_8);
+
+        new SendMessageOperation(node, nodeID, serializedMsg).execute();
     }
 
     public void sendBlockInfo(byte[] nodeID, long blockNum, byte[] prevBlockHash) {
@@ -110,7 +177,9 @@ public class MessageHandler {
         if (block.isPresent()) {
             BlockMessage blockMessage = new BlockMessage(block.get());
 
-            byte[] message = gson.toJson(blockMessage).getBytes(StandardCharsets.UTF_8);
+            Message msg = new Message(blockMessage);
+
+            byte[] message = gson.toJson(msg).getBytes(StandardCharsets.UTF_8);
 
             new SendMessageOperation(node, nodeID, message).execute();
         }

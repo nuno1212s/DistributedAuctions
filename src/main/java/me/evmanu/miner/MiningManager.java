@@ -2,9 +2,8 @@ package me.evmanu.miner;
 
 import lombok.Setter;
 import me.evmanu.blockchain.blocks.Block;
-import me.evmanu.blockchain.blocks.BlockChain;
-import me.evmanu.blockchain.blocks.BlockChainHandler;
-import me.evmanu.blockchain.blocks.TransactionPool;
+import me.evmanu.blockchain.BlockChainHandler;
+import me.evmanu.blockchain.TransactionPool;
 import me.evmanu.blockchain.blocks.blockbuilders.BlockBuilder;
 import me.evmanu.blockchain.blocks.blockbuilders.PoWBlockBuilder;
 import me.evmanu.blockchain.blocks.blockchains.PoWBlockChain;

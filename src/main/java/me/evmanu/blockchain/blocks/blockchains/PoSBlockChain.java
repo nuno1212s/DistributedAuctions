@@ -2,7 +2,7 @@ package me.evmanu.blockchain.blocks.blockchains;
 
 import me.evmanu.blockchain.blocks.Block;
 import me.evmanu.blockchain.blocks.BlockChain;
-import me.evmanu.blockchain.blocks.BlockChainStandards;
+import me.evmanu.blockchain.BlockChainStandards;
 import me.evmanu.blockchain.blocks.BlockHeader;
 import me.evmanu.blockchain.transactions.ScriptPubKey;
 import me.evmanu.blockchain.transactions.ScriptSignature;

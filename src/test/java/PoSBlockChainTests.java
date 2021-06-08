@@ -1,7 +1,6 @@
 import me.evmanu.Standards;
 import me.evmanu.blockchain.Signable;
-import me.evmanu.blockchain.blocks.Block;
-import me.evmanu.blockchain.blocks.BlockChainStandards;
+import me.evmanu.blockchain.BlockChainStandards;
 import me.evmanu.blockchain.blocks.blockbuilders.PoSBlockBuilder;
 import me.evmanu.blockchain.blocks.blockchains.PoSBlockChain;
 import me.evmanu.blockchain.transactions.ScriptPubKey;
@@ -14,7 +13,6 @@ import org.junit.jupiter.api.Test;
 
 import java.security.KeyPair;
 import java.security.PublicKey;
-import java.security.Signature;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
