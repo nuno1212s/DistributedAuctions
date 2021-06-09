@@ -1,11 +1,14 @@
-package me.evmanu.daos.transactions;
+package me.evmanu.blockchain.transactions;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import me.evmanu.Standards;
-import me.evmanu.daos.Hashable;
+import me.evmanu.blockchain.Hashable;
+import me.evmanu.blockchain.Signable;
+import me.evmanu.util.Hex;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
@@ -14,24 +17,56 @@ import java.util.Arrays;
 
 @Getter
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class ScriptSignature implements Hashable {
+/*
+ *
+ */
+public class ScriptSignature implements Hashable, Signable, Serializable {
 
+    //The block of the transaction
+    private final long originatingBlock;
+
+    //The transaction that has this input as it's output at the index outputIndex
     private final byte[] originatingTXID;
 
     private final int outputIndex;
 
+    //The signature of this input (including the public key) and all the outputs
     private final byte[] publicKey, signature;
 
     @Override
     public void addToHash(MessageDigest digest) {
-        var buffer = ByteBuffer.allocate(originatingTXID.length + 4 + publicKey.length + signature.length);
+        var buffer = ByteBuffer.allocate(originatingTXID.length
+                + Long.BYTES +
+                + Integer.BYTES + publicKey.length + signature.length);
 
+        buffer.putLong(originatingBlock);
         buffer.put(originatingTXID);
         buffer.putInt(outputIndex);
         buffer.put(publicKey);
         buffer.put(signature);
 
         digest.update(buffer.array());
+    }
+
+    @Override
+    public void addToSignature(Signature signature) {
+
+        var buffer = ByteBuffer.allocate(originatingTXID.length
+                + Long.BYTES +
+                + Integer.BYTES + publicKey.length + this.signature.length);
+
+
+        buffer.putLong(originatingBlock);
+        buffer.put(originatingTXID);
+        buffer.putInt(outputIndex);
+        buffer.put(publicKey);
+        buffer.put(this.signature);
+
+        try {
+            signature.update(buffer.array());
+        } catch (SignatureException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -43,7 +78,7 @@ public class ScriptSignature implements Hashable {
      * @param originatingTransaction
      * @return
      */
-    public boolean verifyOutputExists(Transaction originatingTransaction) {
+    public final boolean verifyOutputExists(Transaction originatingTransaction) {
 
         if (!Arrays.equals(originatingTXID, originatingTransaction.getTxID())) {
             System.out.println("The transaction provided is not the transaction that originated this input!");
@@ -55,6 +90,11 @@ public class ScriptSignature implements Hashable {
             //but never hurts to check, as the originatingTransaction might not be valid
             System.out.println("Size error.");
             return false;
+        } else if (this.outputIndex < 0) {
+            //This should only happen on Proof of stake withdraw transactions
+
+
+
         }
 
         final KeyFactory keyFactoryInstance = Standards.getKeyFactoryInstance();
@@ -68,8 +108,13 @@ public class ScriptSignature implements Hashable {
         try {
             var hashedResult = Standards.calculateHashedPublicKeyFrom(keyFactoryInstance.generatePublic(pubKey));
 
-            return Arrays.equals(output.getHashedPubKey(), hashedResult);
+            if (!Arrays.equals(output.getHashedPubKey(), hashedResult)) {
+                System.out.println("The public key provided does not match the public key of the output!");
 
+                return false;
+            }
+
+            return true;
         } catch (InvalidKeySpecException e) {
             e.printStackTrace();
         }
@@ -80,9 +125,10 @@ public class ScriptSignature implements Hashable {
     /**
      * Verifies that the signature was made by the public key that is stored in this object
      *
+     * @param owner The transaction that contains this input
      * @return
      */
-    public boolean verifyOwnership() {
+    public final boolean verifyOwnership(Transaction owner) {
 
         final Signature signatures = Standards.getSignatureInstance();
 
@@ -97,9 +143,19 @@ public class ScriptSignature implements Hashable {
 
             signatures.initVerify(publicKey);
 
+            signatures.update(ByteBuffer.allocate(Long.BYTES).putLong(originatingBlock));
             signatures.update(this.getOriginatingTXID());
-            signatures.update(ByteBuffer.allocate(4).putInt(outputIndex));
+            signatures.update(ByteBuffer.allocate(Integer.BYTES).putInt(outputIndex));
             signatures.update(this.publicKey);
+
+            //We include the output that are planned so that no one can change the amount of coin
+            //That's going to each output (It was not possible to add or remove output,
+            //but we could shift the amount of money that is sent to each output)
+            for (ScriptPubKey output : owner.getOutputs()) {
+                signatures.update(output.getHashedPubKey());
+
+                signatures.update(ByteBuffer.allocate(Float.BYTES).putFloat(output.getAmount()));
+            }
 
             return signatures.verify(this.signature);
 
@@ -110,6 +166,17 @@ public class ScriptSignature implements Hashable {
         return false;
     }
 
+    @Override
+    public String toString() {
+        return "Input{" +
+                "originatingBlock=" + originatingBlock +
+                ", originatingTXID=" + Hex.toHexString(originatingTXID) +
+                ", outputIndex=" + outputIndex +
+                ", publicKey=" + Hex.toHexString(publicKey) +
+                ", signature=" + Hex.toHexString(signature) +
+                '}';
+    }
+
     /**
      * Create an input from an output of a previous transaction
      * This does not verify the transaction that is provided, but it does verify that the key pair that was provided
@@ -118,10 +185,12 @@ public class ScriptSignature implements Hashable {
      * @param transaction
      * @param outputIndex
      * @param correspondingKeyPair
+     * @param outputs The outputs of the transaction this input is in
      * @return
      * @throws IllegalAccessException
      */
-    public static ScriptSignature fromOutput(Transaction transaction, int outputIndex, KeyPair correspondingKeyPair)
+    public static ScriptSignature fromOutput(Transaction transaction, long txBlockNum, int outputIndex, KeyPair correspondingKeyPair,
+                                             ScriptPubKey[] outputs)
             throws IllegalAccessException {
 
         ScriptPubKey output = transaction.getOutputs()[outputIndex];
@@ -129,7 +198,8 @@ public class ScriptSignature implements Hashable {
         var result = Standards.calculateHashedPublicKeyFrom(correspondingKeyPair.getPublic());
 
         if (!Arrays.equals(result, output.getHashedPubKey())) {
-            throw new IllegalAccessException("That key pair does not match the output you are requesting!");
+            //TODO: Add this back, this is just for testing wrong keypairs
+//            throw new IllegalAccessException("That key pair does not match the output you are requesting!");
         }
 
         final Signature signatures = Standards.getSignatureInstance();
@@ -141,9 +211,15 @@ public class ScriptSignature implements Hashable {
 
             signatures.update(transaction.getTxID());
 
-            signatures.update(ByteBuffer.allocate(4).putInt(outputIndex));
+            signatures.update(ByteBuffer.allocate(Integer.BYTES).putInt(outputIndex));
 
             signatures.update(correspondingKeyPair.getPublic().getEncoded());
+
+            for (ScriptPubKey scriptPubKey : outputs) {
+                signatures.update(scriptPubKey.getHashedPubKey());
+
+                signatures.update(ByteBuffer.allocate(Float.BYTES).putFloat(scriptPubKey.getAmount()));
+            }
 
             resultSignature = signatures.sign();
 
@@ -153,7 +229,8 @@ public class ScriptSignature implements Hashable {
             return null;
         }
 
-        return new ScriptSignature(transaction.getTxID(), outputIndex,
+        return new ScriptSignature(txBlockNum,
+                transaction.getTxID(), outputIndex,
                 correspondingKeyPair.getPublic().getEncoded(),
                 resultSignature);
     }
